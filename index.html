@@ -3,10 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件上传</title>
+    <title>文件上传 - 南京师范大学</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 季节动态背景 -->
+    <div id="season-bg" class="season-bg spring">
+        <div id="particles-container" class="particles-container"></div>
+        <div class="bg-overlay"></div>
+    </div>
+    
+    <!-- 季节标题 -->
+    <div id="season-title" class="season-title"></div>
+    
     <h1>文件上传</h1>
     
     <div class="main-container">
@@ -324,6 +333,109 @@
 
         // 页面加载时显示文件列表
         loadFileList();
+        
+        // ==================== 南京师范大学四季动态背景 ====================
+        
+        // 季节配置
+        const SEASONS = {
+            spring: {
+                name: '春季·随园',
+                months: [3, 4, 5],
+                particles: ['🌸', '🌺', '🌷', '💮', '🏵️'],
+                bgGradient: 'linear-gradient(135deg, #ffeef8 0%, #fff5f7 30%, #f0f9ff 70%, #e6f7ff 100%)',
+                titleColor: '#e91e63'
+            },
+            summer: {
+                name: '夏季·仙林',
+                months: [6, 7, 8],
+                particles: ['☀️', '✨', '💫', '⭐', '🌟'],
+                bgGradient: 'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 30%, #80deea 70%, #4dd0e1 100%)',
+                titleColor: '#00bcd4'
+            },
+            autumn: {
+                name: '秋季·紫金',
+                months: [9, 10, 11],
+                particles: ['🍂', '🍁', '🍃', '🍂', '🌰'],
+                bgGradient: 'linear-gradient(135deg, #fff8e1 0%, #ffecb3 30%, #ffe0b2 70%, #ffcc80 100%)',
+                titleColor: '#ff9800'
+            },
+            winter: {
+                name: '冬季·南师',
+                months: [12, 1, 2],
+                particles: ['❄️', '💨', '☃️', '⛄', '🌨️'],
+                bgGradient: 'linear-gradient(135deg, #eceff1 0%, #cfd8dc 30%, #b0bec5 70%, #90a4ae 100%)',
+                titleColor: '#607d8b'
+            }
+        };
+        
+        // 获取当前季节
+        function getCurrentSeason() {
+            const month = new Date().getMonth() + 1;
+            for (const [season, config] of Object.entries(SEASONS)) {
+                if (config.months.includes(month)) {
+                    return { key: season, ...config };
+                }
+            }
+            return { key: 'spring', ...SEASONS.spring };
+        }
+        
+        // 创建粒子
+        function createParticle(container, particles, delay = 0) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+            
+            // 随机位置和大小
+            const size = Math.random() * 20 + 15;
+            particle.style.fontSize = size + 'px';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = '-50px';
+            particle.style.animationDelay = delay + 's';
+            particle.style.animationDuration = (Math.random() * 10 + 8) + 's';
+            particle.style.opacity = Math.random() * 0.6 + 0.4;
+            
+            // 随机水平飘动
+            const swayAmplitude = Math.random() * 100 + 50;
+            particle.style.setProperty('--sway-amplitude', swayAmplitude + 'px');
+            
+            container.appendChild(particle);
+            
+            // 动画结束后移除并创建新粒子
+            particle.addEventListener('animationend', () => {
+                particle.remove();
+                createParticle(container, particles, 0);
+            });
+        }
+        
+        // 初始化季节背景
+        function initSeasonBackground() {
+            const season = getCurrentSeason();
+            const bgElement = document.getElementById('season-bg');
+            const titleElement = document.getElementById('season-title');
+            const particlesContainer = document.getElementById('particles-container');
+            
+            // 设置背景类名和样式
+            bgElement.className = 'season-bg ' + season.key;
+            bgElement.style.background = season.bgGradient;
+            
+            // 设置季节标题
+            titleElement.textContent = season.name;
+            titleElement.style.color = season.titleColor;
+            
+            // 清除旧粒子
+            particlesContainer.innerHTML = '';
+            
+            // 创建新粒子
+            const particleCount = 30;
+            for (let i = 0; i < particleCount; i++) {
+                setTimeout(() => {
+                    createParticle(particlesContainer, season.particles, 0);
+                }, i * 300);
+            }
+        }
+        
+        // 初始化
+        initSeasonBackground();
     </script>
 </body>
 </html>
