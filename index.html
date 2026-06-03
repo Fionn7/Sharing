@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的文献库 | 可上传 & 查看</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #f6f8fa;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-box {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        #fileInput {
+            margin: 15px 0;
+            padding: 8px;
+        }
+        button {
+            background: #2da44e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #2c974b;
+        }
+        .paper-list {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .paper-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .paper-item a {
+            color: #0969da;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        .paper-item a:hover {
+            text-decoration: underline;
+        }
+        .tip {
+            color: #656d76;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📚 我的公共文献库</h1>
+        <p class="tip">访客可直接上传文献，所有人可在线查看与下载</p>
+    </div>
+
+    <!-- 上传区域 -->
+    <div class="upload-box">
+        <h3>上传新文献</h3>
+        <input type="file" id="fileInput" multiple>
+        <br>
+        <button onclick="uploadFiles()">✅ 确认上传</button>
+        <p class="tip" id="uploadTip"></p>
+    </div>
+
+    <!-- PDF 预览 -->
+    <div class="paper-list" style="margin-bottom: 30px;">
+        <h3>📄 PDF 预览</h3>
+        <p class="tip">当前仓库中的 PDF 会在下方直接预览；如需下载可点击列表中的文件链接。</p>
+        <embed
+            src="./TLM法测量欧姆接触电阻.pdf"
+            type="application/pdf"
+            title="PDF 预览"
+            style="width: 100%; min-height: 700px; border: 1px solid #d0d7de; border-radius: 8px; background: white;"
+        >
+    </div>
+
+    <!-- 文献列表 -->
+    <div class="paper-list">
+        <h3>📄 已上传文献列表</h3>
+        <br>
+        <div id="fileList"></div>
+    </div>
+
+    <script>
+        // ========== 配置区（只需要改这里！）==========
+        const CONFIG = {
+            username: "Fionn7",               // 当前仓库所有者
+            repo: "Sharing",                  // 当前仓库名
+            branch: "main",                   // 默认 main
+            token: ""                         // 可选：填写 GitHub Personal Access Token 可减少限流风险
+        };
+
+        // 上传文件
+        async function uploadFiles() {
+            const input = document.getElementById('fileInput');
+            const tip = document.getElementById('uploadTip');
+            
+            if (input.files.length === 0) {
+                tip.innerText = "请先选择文件";
+                return;
+            }
+
+            tip.innerText = "正在跳转到 GitHub 上传页面...";
+            
+            // 跳转到 GitHub 官方安全上传页（唯一支持访客上传的方式）
+            const uploadUrl = `https://github.com/${CONFIG.username}/${CONFIG.repo}/upload/${CONFIG.branch}`;
+            window.open(uploadUrl, "_blank");
+            
+            tip.innerText = "在新页面提交后，刷新本页即可看到文献！";
+            setTimeout(loadFileList, 2000);
+        }
+
+        // 加载文献列表
+        async function loadFileList() {
+            const listEl = document.getElementById('fileList');
+            listEl.innerHTML = "加载中...";
+
+            try {
+                // 调用 GitHub API 读取仓库文件
+                const apiUrl = `https://api.github.com/repos/${CONFIG.username}/${CONFIG.repo}/contents/`;
+                const headers = {
+                    'Accept': 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28'
+                };
+                if (CONFIG.token) {
+                    headers['Authorization'] = `Bearer ${CONFIG.token}`;
+                }
+
+                const res = await fetch(apiUrl, { headers });
+
+                if (res.status === 403 || res.status === 429) {
+                    const fallbackPdf = {
+                        name: 'TLM法测量欧姆接触电阻.pdf',
+                        size: 3361642,
+                        download_url: './TLM法测量欧姆接触电阻.pdf'
+                    };
+                    listEl.innerHTML = `
+                        <div class="paper-item">
+                            <a href="${encodeURI(fallbackPdf.download_url)}" target="_blank">📄 ${fallbackPdf.name}</a>
+                            <span style="color:#656d76; margin-left:10px;">(${formatSize(fallbackPdf.size)})</span>
+                        </div>
+                        <p class="tip">GitHub API 当前被限流，已使用本地预览链接显示该 PDF。</p>
+                    `;
+                    return;
+                }
+
+                if (!res.ok) {
+                    throw new Error(`GitHub API 返回 ${res.status}`);
+                }
+
+                const files = await res.json();
+
+                if (!Array.isArray(files) || files.length === 0) {
+                    listEl.innerHTML = "暂无文献，快来上传第一篇吧！";
+                    return;
+                }
+
+                // 过滤掉网页文件，只显示文献
+                const htmlFiles = ["index.html", "README.md"];
+                const paperFiles = files.filter(f => !htmlFiles.includes(f.name));
+
+                if (paperFiles.length === 0) {
+                    listEl.innerHTML = "暂无文献";
+                    return;
+                }
+
+                // 渲染列表
+                let html = '';
+                paperFiles.forEach(file => {
+                    html += `
+                        <div class="paper-item">
+                            <a href="${file.download_url}" target="_blank">📄 ${file.name}</a>
+                            <span style="color:#656d76; margin-left:10px;">(${formatSize(file.size)})</span>
+                        </div>
+                    `;
+                });
+                listEl.innerHTML = html;
+
+            } catch (err) {
+                listEl.innerHTML = "加载失败，请刷新重试";
+                console.error(err);
+            }
+        }
+
+        // 文件大小格式化
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + "B";
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + "KB";
+            else return (bytes / 1048576).toFixed(1) + "MB";
+        }
+
+        // 页面加载时自动显示文献
+        window.onload = loadFileList;
+    </script>
+</body>
+</html> 
