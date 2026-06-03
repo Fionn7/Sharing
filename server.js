@@ -14,8 +14,8 @@ const upload = multer({
   },
 });
 
-// Render / 本地环境变量优先；如未设置则回退到仓库内的默认 Token
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || process.env.GITHUB_AUTH_TOKEN || 'REDACTED';
+// Render / 本地环境变量中配置 GitHub Token；不要把 Token 写进代码库。
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || process.env.GITHUB_AUTH_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Fionn7';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'Sharing';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
