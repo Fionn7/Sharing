@@ -1,0 +1,48 @@
+name: 自动处理PDF上传
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  process-pdf:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.issue.title, '上传PDF: ')
+    
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        
+      - name: 提取PDF文件
+        run: |
+          # 从Issue内容中提取Base64编码的PDF
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          FILENAME=$(echo "${{ github.event.issue.title }}" | sed 's/上传PDF: //')
+          
+          # 提取Base64内容
+          BASE64_CONTENT=$(echo "$ISSUE_BODY" | grep -oP 'data:application/pdf;base64,\K[^)]+')
+          
+          # 创建pdfs文件夹（如果不存在）
+          mkdir -p pdfs
+          
+          # 解码并保存文件
+          echo "$BASE64_CONTENT" | base64 -d > "pdfs/$FILENAME"
+          
+          # 配置Git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 提交并推送文件
+          git add "pdfs/$FILENAME"
+          git commit -m "自动添加PDF: $FILENAME"
+          git push
+          
+      - name: 关闭Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });
