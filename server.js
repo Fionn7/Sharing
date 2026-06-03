@@ -195,7 +195,7 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
       ok: true,
       message: '上传成功',
       file: safeFilename,
-      downloadUrl: `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/${folder}/${safeFilename}`,
+      downloadUrl: `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${folder}/${safeFilename}`,
       htmlUrl: data.content?.html_url || null,
     });
   } catch (error) {
