@@ -9,17 +9,23 @@
 <body>
     <h1>文件上传</h1>
     
-    <div class="upload-box">
-        <input type="file" id="file-input" multiple>
-        <label for="file-input">选择文件（支持多文件）</label>
-        <p>支持各类文件格式，单个文件最大 50MB。</p>
-        <div id="status"></div>
-        <div id="upload-progress" class="upload-progress"></div>
-    </div>
+    <div class="main-container">
+        <div class="upload-section">
+            <div class="upload-box">
+                <input type="file" id="file-input" multiple>
+                <label for="file-input">选择文件（支持多文件）</label>
+                <p>支持各类文件格式，单个文件最大 50MB。</p>
+                <div id="status"></div>
+                <div id="upload-progress" class="upload-progress"></div>
+            </div>
+        </div>
 
-    <div class="file-list">
-        <h2>已上传的文件</h2>
-        <div id="file-list"></div>
+        <div class="file-section">
+            <div class="file-list">
+                <h2>已上传的文件</h2>
+                <div id="file-list" class="categories-grid"></div>
+            </div>
+        </div>
     </div>
 
     <script>

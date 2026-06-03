@@ -4,7 +4,7 @@
 
 /* 全局样式 */
 body {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 40px auto;
     padding: 0 30px;
     font-family: 'Times New Roman', Georgia, 'Songti SC', SimSun, serif;
@@ -32,6 +32,13 @@ h2 {
     font-weight: 600;
     margin-bottom: 20px;
     letter-spacing: 1px;
+}
+
+/* 主容器 - 大屏幕横向布局 */
+.main-container {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 40px;
 }
 
 /* 上传区域容器 */
@@ -169,7 +176,7 @@ label:active {
 
 /* 文件列表区域 */
 .file-list {
-    margin-top: 40px;
+    margin-top: 0;
     background: #ffffff;
     padding: 40px;
     border: 2px solid #333;
@@ -177,36 +184,45 @@ label:active {
     box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.1);
 }
 
-/* 文件分类容器 */
-.file-category {
-    margin-bottom: 30px;
-    border-bottom: 2px solid #ddd;
-    padding-bottom: 20px;
+/* 文件分类容器 - 大屏幕网格布局 */
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 30px;
 }
 
-.file-category:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
+/* 文件分类容器 */
+.file-category {
+    background: #fafafa;
+    border: 1px solid #ddd;
+    padding: 25px;
+    border-radius: 0;
+    transition: all 0.3s ease;
+}
+
+.file-category:hover {
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.1);
+    border-color: #333;
 }
 
 /* 分类标题 */
 .category-title {
     color: #333;
-    font-size: 1.2em;
+    font-size: 1.15em;
     font-weight: 700;
-    margin-bottom: 15px;
-    padding: 10px 15px;
-    background: #f5f5f5;
-    border-left: 3px solid #333;
+    margin-bottom: 18px;
+    padding: 12px 18px;
+    background: #333;
+    color: #fff;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    letter-spacing: 1px;
 }
 
 /* 分类内的文件容器 */
 .category-files {
-    margin-left: 15px;
+    margin-left: 0;
 }
 
 /* 文件列表项 */
@@ -215,21 +231,22 @@ label:active {
     align-items: center;
     justify-content: space-between;
     gap: 15px;
-    padding: 18px 20px;
-    border-bottom: 1px solid #ddd;
+    padding: 15px 18px;
+    border-bottom: 1px solid #e5e5e5;
     transition: all 0.3s ease;
     background: #fff;
 }
 
 /* 文件图标 */
 .file-icon {
-    font-size: 1.5em;
-    min-width: 30px;
+    font-size: 1.4em;
+    min-width: 28px;
     text-align: center;
 }
 
 .file-item:hover {
     background: #f5f5f5;
+    padding-left: 25px;
 }
 
 .file-item:last-child {
@@ -241,7 +258,7 @@ label:active {
     text-decoration: none;
     color: #333;
     font-weight: 500;
-    font-size: 1em;
+    font-size: 0.95em;
     transition: all 0.3s ease;
     flex: 1;
     overflow: hidden;
@@ -261,11 +278,11 @@ label:active {
     background: #fff;
     color: #333;
     border-radius: 0;
-    padding: 8px 16px;
+    padding: 6px 14px;
     cursor: pointer;
     font-weight: 600;
     transition: all 0.3s ease;
-    font-size: 0.9em;
+    font-size: 0.85em;
     letter-spacing: 1px;
     flex-shrink: 0;
 }
@@ -408,173 +425,50 @@ label:active {
 .file-list > p {
     text-align: center;
     color: #999;
-    padding: 40px 20px;
+    padding: 60px 20px;
     font-size: 1.1em;
 }
 
-/* ==================== 同步面板样式 ==================== */
-.sync-panel {
-    margin-top: 40px;
-    background: #ffffff;
-    padding: 40px;
-    border: 2px solid #333;
-    box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.1);
+/* ==================== 响应式设计 ==================== */
+
+/* 大屏幕（电脑）- 横向布局 */
+@media (min-width: 1025px) {
+    body {
+        max-width: 1400px;
+    }
+    
+    .main-container {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 40px;
+    }
+    
+    .categories-grid {
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    }
 }
 
-.sync-panel h2 {
-    margin-bottom: 25px;
+/* 中等屏幕 */
+@media (max-width: 1024px) and (min-width: 769px) {
+    body {
+        max-width: 900px;
+    }
+    
+    .main-container {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+    }
+    
+    .categories-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
 }
 
-/* 同步按钮容器 */
-.sync-buttons {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-/* 同步按钮 */
-.sync-btn {
-    background: #333;
-    color: white;
-    border: 2px solid #333;
-    padding: 12px 24px;
-    font-size: 0.95em;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    letter-spacing: 1px;
-    flex: 1;
-    min-width: 160px;
-}
-
-.sync-btn-download {
-    background: #2563eb;
-    border-color: #2563eb;
-}
-
-.sync-btn-download:hover:not(:disabled) {
-    background: #1d4ed8;
-    border-color: #1d4ed8;
-}
-
-.sync-btn-upload {
-    background: #059669;
-    border-color: #059669;
-}
-
-.sync-btn-upload:hover:not(:disabled) {
-    background: #047857;
-    border-color: #047857;
-}
-
-.sync-btn-both {
-    background: #333;
-    border-color: #333;
-}
-
-.sync-btn-both:hover:not(:disabled) {
-    background: #1a1a1a;
-    border-color: #1a1a1a;
-}
-
-.sync-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.sync-btn:disabled {
-    background: #999;
-    border-color: #999;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-/* 同步状态显示 */
-.sync-status {
-    margin-top: 20px;
-}
-
-.sync-status p {
-    padding: 12px 20px;
-    border-left: 3px solid #333;
-    font-weight: 500;
-}
-
-.sync-status .sync-info {
-    background: #f5f5f5;
-    color: #666;
-}
-
-.sync-status .syncing {
-    background: #f5f5f5;
-    color: #333;
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-.sync-status .sync-success {
-    background: #f5f5f5;
-    color: #333;
-}
-
-.sync-status .sync-error {
-    background: #fff;
-    color: #333;
-    border-left-color: #dc3545;
-}
-
-/* 本地文件列表 */
-.local-files {
-    margin-top: 25px;
-}
-
-.local-files h4 {
-    color: #333;
-    font-size: 1.1em;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #ddd;
-}
-
-.local-files .file-list-inline {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.local-files .file-list-inline li {
-    padding: 10px 15px;
-    border-bottom: 1px solid #eee;
-    background: #fafafa;
-    margin-bottom: 5px;
-}
-
-.local-files .file-list-inline li:hover {
-    background: #f0f0f0;
-}
-
-.local-files .file-size {
-    color: #999;
-    font-size: 0.9em;
-}
-
-.local-files .empty-tip {
-    text-align: center;
-    color: #999;
-    padding: 30px;
-    font-style: italic;
-}
-
-.local-files .error-tip {
-    text-align: center;
-    color: #dc3545;
-    padding: 30px;
-}
-
-/* 响应式设计 */
+/* 小屏幕（手机）- 垂直布局 */
 @media (max-width: 768px) {
     body {
+        max-width: 100%;
         padding: 0 20px;
         margin: 20px auto;
     }
@@ -588,15 +482,33 @@ label:active {
         font-size: 1.4em;
     }
     
+    .main-container {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+    }
+    
     .upload-box,
     .file-list {
         padding: 30px 20px;
+    }
+    
+    .categories-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .file-category {
+        padding: 20px;
     }
     
     .file-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
+    }
+    
+    .file-item:hover {
+        padding-left: 18px;
     }
     
     .file-item a {
