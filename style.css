@@ -1,260 +1,17 @@
 /* ========================================
-   文件上传系统样式 - 南京师范大学四季主题
+   文件上传系统样式 - 科研风格（黑白灰）
    ======================================== */
 
-/* ==================== 季节动态背景 ==================== */
-
-/* 季节背景容器 */
-.season-bg {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -2;
-    transition: background 1s ease;
-    overflow: hidden;
-}
-
-/* 背景叠加层 - 保证内容可读性 */
-.bg-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.55);
-    z-index: 1;
-}
-
-/* 粒子容器 */
-.particles-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    z-index: 0;
-    pointer-events: auto;
-}
-
-/* 通用粒子样式 */
-.particle {
-    position: absolute;
-    pointer-events: auto;
-    cursor: pointer;
-    transition: transform 0.2s ease-out, opacity 0.2s ease;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
-}
-
-.particle:hover {
-    transform: scale(1.4) !important;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
-    z-index: 100;
-}
-
-/* ==================== 春季粒子 ==================== */
-
-/* 樱花 */
-.particle.sakura {
-    background: radial-gradient(ellipse at center, #ffb7c5 0%, #ff69b4 50%, #ff1493 100%);
-    border-radius: 0 50% 50% 50%;
-    transform: rotate(45deg);
-}
-
-.particle.sakura::before {
-    content: '';
-    position: absolute;
-    width: 40%;
-    height: 40%;
-    background: radial-gradient(ellipse at center, #ff69b4 0%, #ff1493 100%);
-    border-radius: 50%;
-    top: 30%;
-    left: 30%;
-}
-
-/* 绿叶 */
-.particle.leaf {
-    background: linear-gradient(135deg, #90EE90 0%, #32CD32 50%, #228B22 100%);
-    border-radius: 0 70% 0 70%;
-    transform: rotate(-30deg);
-}
-
-.particle.leaf::after {
-    content: '';
-    position: absolute;
-    width: 3px;
-    height: 60%;
-    background: #228B22;
-    left: 50%;
-    top: 20%;
-    transform: translateX(-50%);
-    border-radius: 2px;
-}
-
-/* 蝴蝶 */
-.particle.butterfly {
-    background: linear-gradient(45deg, #FFD700 0%, #FFA500 50%, #FF6347 100%);
-    border-radius: 50%;
-    transform: rotate(0deg);
-}
-
-.particle.butterfly::before,
-.particle.butterfly::after {
-    content: '';
-    position: absolute;
-    width: 50%;
-    height: 100%;
-    background: inherit;
-    border-radius: 0 100% 0 100%;
-}
-
-.particle.butterfly::before {
-    left: -20%;
-    transform: scaleX(-1);
-}
-
-.particle.butterfly::after {
-    right: -20%;
-}
-
-/* ==================== 夏季粒子 ==================== */
-
-/* 太阳 */
-.particle.sun {
-    background: radial-gradient(circle at center, #FFFF00 0%, #FFA500 50%, #FF8C00 100%);
-    border-radius: 50%;
-    box-shadow: 0 0 20px #FFD700, 0 0 40px #FFA500;
-}
-
-/* 星星 */
-.particle.star {
-    background: radial-gradient(circle at center, #FFE87C 0%, #FFD700 50%, #FFA500 100%);
-    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-}
-
-/* 萤火虫 */
-.particle.firefly {
-    background: radial-gradient(circle at center, #90EE90 0%, #32CD32 50%, #228B22 100%);
-    border-radius: 50%;
-    box-shadow: 0 0 15px #90EE90, 0 0 30px #32CD32;
-    animation: firefly-glow 1.5s ease-in-out infinite alternate;
-}
-
-@keyframes firefly-glow {
-    0% { opacity: 0.6; box-shadow: 0 0 10px #90EE90; }
-    100% { opacity: 1; box-shadow: 0 0 25px #32CD32, 0 0 50px #90EE90; }
-}
-
-/* ==================== 秋季粒子 ==================== */
-
-/* 枫叶 */
-.particle.maple {
-    background: linear-gradient(135deg, #FF6347 0%, #FF4500 50%, #8B0000 100%);
-    clip-path: polygon(50% 0%, 80% 20%, 100% 50%, 80% 80%, 50% 100%, 20% 80%, 0% 50%, 20% 20%);
-}
-
-/* 金叶 */
-.particle.leaf-gold {
-    background: linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%);
-    border-radius: 0 100% 0 100%;
-    transform: rotate(45deg);
-}
-
-/* 橡果 */
-.particle.acorn {
-    background: linear-gradient(180deg, #8B4513 0%, #A0522D 40%, #DEB887 100%);
-    border-radius: 50% 50% 40% 40%;
-}
-
-.particle.acorn::before {
-    content: '';
-    position: absolute;
-    width: 70%;
-    height: 30%;
-    background: linear-gradient(90deg, #5D4037 0%, #8D6E63 50%, #5D4037 100%);
-    border-radius: 5px 5px 0 0;
-    top: -5%;
-    left: 15%;
-}
-
-/* ==================== 冬季粒子 ==================== */
-
-/* 雪花 */
-.particle.snowflake {
-    background: transparent;
-}
-
-.particle.snowflake::before,
-.particle.snowflake::after {
-    content: '';
-    position: absolute;
-    background: linear-gradient(90deg, #FFFFFF 0%, #E0FFFF 50%, #FFFFFF 100%);
-    border-radius: 2px;
-    top: 50%;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    transform: translateY(-50%);
-}
-
-.particle.snowflake::after {
-    transform: translateY(-50%) rotate(60deg);
-}
-
-.particle.snowflake::before {
-    transform: translateY(-50%) rotate(-60deg);
-}
-
-/* 雪球 */
-.particle.snow {
-    background: radial-gradient(circle at 30% 30%, #FFFFFF 0%, #F0FFFF 50%, #E0FFFF 100%);
-    border-radius: 50%;
-    box-shadow: inset -3px -3px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* 冰晶 */
-.particle.ice {
-    background: linear-gradient(135deg, #E0FFFF 0%, #ADD8E6 50%, #87CEEB 100%);
-    border-radius: 50%;
-    transform: rotate(45deg);
-    box-shadow: 0 0 15px rgba(135, 206, 250, 0.5);
-}
-
-/* ==================== 全局样式 ==================== */
+/* 全局样式 */
 body {
     max-width: 1200px;
     margin: 40px auto;
     padding: 0 30px;
     font-family: 'Times New Roman', Georgia, 'Songti SC', SimSun, serif;
+    background: #f5f5f5;
     min-height: 100vh;
     color: #333;
     line-height: 1.6;
-    position: relative;
-}
-
-/* 季节标题 */
-.season-title {
-    text-align: center;
-    font-size: 1.4em;
-    font-weight: 600;
-    margin-bottom: 15px;
-    letter-spacing: 5px;
-    text-transform: uppercase;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    animation: titleFade 1s ease;
-}
-
-@keyframes titleFade {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 /* 标题样式 */
@@ -450,12 +207,13 @@ label:active {
 
 /* 分类标题 */
 .category-title {
-    color: #fff;
+    color: #333;
     font-size: 1.15em;
     font-weight: 700;
     margin-bottom: 18px;
     padding: 12px 18px;
     background: #333;
+    color: #fff;
     display: flex;
     align-items: center;
     gap: 10px;
