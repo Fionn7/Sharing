@@ -74,7 +74,7 @@
                     pdfListDiv.appendChild(item);
                 });
             } catch (error) {
-                pdfListDiv.innerHTML = '<p>加载PDF列表失败</p>';
+                pdfListDiv.innerHTML = `<p>加载PDF列表失败：${error.message || '请稍后重试'}</p>`;
             }
         }
 

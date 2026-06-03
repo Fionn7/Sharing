@@ -37,19 +37,18 @@ app.get('/health', (_, res) => {
 
 app.get('/api/files', async (_, res) => {
   try {
-    if (!GITHUB_TOKEN) {
-      return res.status(500).json({ ok: false, message: '未配置 GITHUB_TOKEN' });
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/pdfs`;
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'sharing-pdf-backend',
+    };
+
+    if (GITHUB_TOKEN) {
+      headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
     }
 
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${'pdfs'}`;
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'sharing-pdf-backend',
-      },
-    });
+    const response = await fetch(url, { headers });
 
     const data = await response.json().catch(() => ({}));
 
