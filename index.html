@@ -35,6 +35,9 @@
         const GITHUB_USERNAME = "Fionn7"; // 比如：zhangsan
         const GITHUB_REPO = "Sharing"; // 比如：zhangsan.github.io 或者 my-pdf-site
         const PDF_FOLDER = "pdfs"; // 存放PDF的文件夹名，不用改
+        const API_BASE = window.location.port === '3000'
+            ? window.location.origin
+            : 'http://127.0.0.1:3000';
         // ============================================================
 
         const fileInput = document.getElementById('file-input');
@@ -86,7 +89,7 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 40000);
 
-                const response = await fetch('/api/upload', {
+                const response = await fetch(`${API_BASE}/api/upload`, {
                     method: 'POST',
                     body: formData,
                     signal: controller.signal,
