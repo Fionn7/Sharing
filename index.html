@@ -47,21 +47,28 @@
         // 加载已上传的PDF列表
         async function loadPdfList() {
             try {
-                const response = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${PDF_FOLDER}`);
-                const files = await response.json();
-                
-                if (Array.isArray(files)) {
-                    pdfListDiv.innerHTML = '';
-                    files.forEach(file => {
-                        if (file.name.endsWith('.pdf')) {
-                            const pdfUrl = `https://${GITHUB_USERNAME}.github.io/${GITHUB_REPO}/${PDF_FOLDER}/${file.name}`;
-                            const item = document.createElement('div');
-                            item.className = 'pdf-item';
-                            item.innerHTML = `<a href="${pdfUrl}" target="_blank">${file.name}</a>`;
-                            pdfListDiv.appendChild(item);
-                        }
-                    });
+                const response = await fetch(`${API_BASE}/api/files`);
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || '加载失败');
                 }
+
+                const files = Array.isArray(result.files) ? result.files : [];
+                pdfListDiv.innerHTML = '';
+
+                if (files.length === 0) {
+                    pdfListDiv.innerHTML = '<p>当前还没有上传的 PDF 文件。</p>';
+                    return;
+                }
+
+                files.forEach(file => {
+                    const pdfUrl = `https://${GITHUB_USERNAME}.github.io/${GITHUB_REPO}/${PDF_FOLDER}/${file.name}`;
+                    const item = document.createElement('div');
+                    item.className = 'pdf-item';
+                    item.innerHTML = `<a href="${pdfUrl}" target="_blank">${file.name}</a>`;
+                    pdfListDiv.appendChild(item);
+                });
             } catch (error) {
                 pdfListDiv.innerHTML = '<p>加载PDF列表失败</p>';
             }
