@@ -341,28 +341,24 @@
             spring: {
                 name: '春季·随园',
                 months: [3, 4, 5],
-                particles: ['🌸', '🌺', '🌷', '💮', '🏵️'],
                 bgGradient: 'linear-gradient(135deg, #ffeef8 0%, #fff5f7 30%, #f0f9ff 70%, #e6f7ff 100%)',
                 titleColor: '#e91e63'
             },
             summer: {
                 name: '夏季·仙林',
                 months: [6, 7, 8],
-                particles: ['☀️', '✨', '💫', '⭐', '🌟'],
                 bgGradient: 'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 30%, #80deea 70%, #4dd0e1 100%)',
                 titleColor: '#00bcd4'
             },
             autumn: {
                 name: '秋季·紫金',
                 months: [9, 10, 11],
-                particles: ['🍂', '🍁', '🍃', '🍂', '🌰'],
                 bgGradient: 'linear-gradient(135deg, #fff8e1 0%, #ffecb3 30%, #ffe0b2 70%, #ffcc80 100%)',
                 titleColor: '#ff9800'
             },
             winter: {
                 name: '冬季·南师',
                 months: [12, 1, 2],
-                particles: ['❄️', '💨', '☃️', '⛄', '🌨️'],
                 bgGradient: 'linear-gradient(135deg, #eceff1 0%, #cfd8dc 30%, #b0bec5 70%, #90a4ae 100%)',
                 titleColor: '#607d8b'
             }
@@ -379,33 +375,110 @@
             return { key: 'spring', ...SEASONS.spring };
         }
         
+        // 粒子类型
+        const PARTICLE_TYPES = {
+            spring: ['sakura', 'leaf', 'butterfly'],
+            summer: ['sun', 'star', 'firefly'],
+            autumn: ['maple', 'leaf-gold', 'acorn'],
+            winter: ['snowflake', 'snow', 'ice']
+        };
+        
+        // 鼠标位置
+        let mouseX = 0;
+        let mouseY = 0;
+        let particles = [];
+        
         // 创建粒子
-        function createParticle(container, particles, delay = 0) {
+        function createParticle(container, season, delay = 0) {
+            const types = PARTICLE_TYPES[season];
+            const type = types[Math.floor(Math.random() * types.length)];
+            
             const particle = document.createElement('div');
-            particle.className = 'particle';
-            particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+            particle.className = `particle ${type}`;
             
             // 随机位置和大小
-            const size = Math.random() * 20 + 15;
-            particle.style.fontSize = size + 'px';
-            particle.style.left = Math.random() * 100 + '%';
-            particle.style.top = '-50px';
+            const size = Math.random() * 30 + 20;
+            const startX = Math.random() * 100;
+            const duration = Math.random() * 15 + 10;
+            
+            particle.style.width = size + 'px';
+            particle.style.height = size + 'px';
+            particle.style.left = startX + '%';
+            particle.style.top = '-60px';
             particle.style.animationDelay = delay + 's';
-            particle.style.animationDuration = (Math.random() * 10 + 8) + 's';
-            particle.style.opacity = Math.random() * 0.6 + 0.4;
+            particle.style.animationDuration = duration + 's';
+            particle.style.opacity = Math.random() * 0.7 + 0.3;
             
-            // 随机水平飘动
-            const swayAmplitude = Math.random() * 100 + 50;
-            particle.style.setProperty('--sway-amplitude', swayAmplitude + 'px');
+            // 存储粒子信息
+            const particleInfo = {
+                element: particle,
+                x: startX,
+                y: -10,
+                speedY: 1 + Math.random(),
+                speedX: (Math.random() - 0.5) * 0.5,
+                rotation: 0,
+                rotationSpeed: (Math.random() - 0.5) * 4,
+                scale: 1,
+                originalScale: 1
+            };
             
+            particles.push(particleInfo);
             container.appendChild(particle);
             
-            // 动画结束后移除并创建新粒子
-            particle.addEventListener('animationend', () => {
+            // 动画结束后移除
+            setTimeout(() => {
+                const index = particles.indexOf(particleInfo);
+                if (index > -1) {
+                    particles.splice(index, 1);
+                }
                 particle.remove();
-                createParticle(container, particles, 0);
-            });
+            }, duration * 1000);
         }
+        
+        // 更新粒子位置（鼠标交互）
+        function updateParticles() {
+            particles.forEach((p, index) => {
+                // 计算与鼠标的距离
+                const particleX = p.x * window.innerWidth / 100;
+                const particleY = p.y * window.innerHeight / 100;
+                const dx = particleX - mouseX;
+                const dy = particleY - mouseY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 鼠标接近时的交互效果
+                if (distance < 150) {
+                    const force = (150 - distance) / 150;
+                    p.speedX += (dx / distance) * force * 0.3;
+                    p.speedY += (dy / distance) * force * 0.2;
+                    p.scale = 1 + force * 0.5;
+                    p.element.style.transform = `scale(${p.scale}) rotate(${p.rotation}deg)`;
+                } else {
+                    p.scale = p.originalScale;
+                    p.element.style.transform = `scale(${p.scale}) rotate(${p.rotation}deg)`;
+                }
+                
+                // 更新位置
+                p.y += p.speedY;
+                p.x += p.speedX;
+                p.rotation += p.rotationSpeed;
+                
+                // 边界检查
+                if (p.x < 0) p.x = 0;
+                if (p.x > 100) p.x = 100;
+                
+                // 应用位置
+                p.element.style.left = p.x + '%';
+                p.element.style.top = p.y + 'vh';
+            });
+            
+            requestAnimationFrame(updateParticles);
+        }
+        
+        // 鼠标移动监听
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
         
         // 初始化季节背景
         function initSeasonBackground() {
@@ -424,14 +497,25 @@
             
             // 清除旧粒子
             particlesContainer.innerHTML = '';
+            particles = [];
             
             // 创建新粒子
-            const particleCount = 30;
+            const particleCount = 40;
             for (let i = 0; i < particleCount; i++) {
                 setTimeout(() => {
-                    createParticle(particlesContainer, season.particles, 0);
-                }, i * 300);
+                    createParticle(particlesContainer, season.key, i * 0.3);
+                }, i * 200);
             }
+            
+            // 持续生成粒子
+            setInterval(() => {
+                if (particles.length < 50) {
+                    createParticle(particlesContainer, season.key, 0);
+                }
+            }, 500);
+            
+            // 启动粒子更新
+            updateParticles();
         }
         
         // 初始化
