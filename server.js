@@ -14,10 +14,12 @@ const upload = multer({
   },
 });
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+// Render / 本地环境变量优先；如未设置则回退到仓库内的默认 Token
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || process.env.GITHUB_AUTH_TOKEN || 'REDACTED';
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Fionn7';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'Sharing';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
+const MISSING_GITHUB_TOKEN_MESSAGE = '未配置 GitHub Token，请在 Render 环境变量中设置 GITHUB_TOKEN（或 GITHUB_PAT / GITHUB_AUTH_TOKEN）。';
 
 app.use(express.json());
 app.use((req, res, next) => {
@@ -71,7 +73,7 @@ app.get('/api/files', async (_, res) => {
 app.delete('/api/files/:name', async (req, res) => {
   try {
     if (!GITHUB_TOKEN) {
-      return res.status(500).json({ ok: false, message: '未配置 GITHUB_TOKEN' });
+      return res.status(500).json({ ok: false, message: MISSING_GITHUB_TOKEN_MESSAGE });
     }
 
     const rawName = decodeURIComponent(req.params.name || '');
@@ -140,7 +142,7 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
     }
 
     if (!GITHUB_TOKEN) {
-      return res.status(500).json({ ok: false, message: '未配置 GITHUB_TOKEN' });
+      return res.status(500).json({ ok: false, message: MISSING_GITHUB_TOKEN_MESSAGE });
     }
 
     const filename = req.body.filename || req.file.originalname;
