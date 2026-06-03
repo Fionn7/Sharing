@@ -1,0 +1,8 @@
+node_modules/
+.sync-status.json
+.env
+config.json
+token.js
+secrets/
+uploads/
+.vscode/
