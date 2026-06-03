@@ -14,7 +14,7 @@ const upload = multer({
   },
 });
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Fionn7';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'Sharing';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
