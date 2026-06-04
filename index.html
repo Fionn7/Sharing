@@ -7,323 +7,112 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>文件上传</h1>
-    
-    <div class="main-container">
-        <div class="upload-section">
-            <div class="upload-box">
-                <input type="file" id="file-input" multiple>
-                <label for="file-input">选择文件（支持多文件）</label>
-                <p>支持各类文件格式，单个文件最大 50MB。</p>
-                <div id="status"></div>
-                <div id="upload-progress" class="upload-progress"></div>
+    <div class="bg-layer" id="bgLayer" aria-hidden="true">
+        <div class="bg-slide" data-season="spring" style="background-image:url('images/spring.jpg')"></div>
+        <div class="bg-slide" data-season="summer" style="background-image:url('images/summer.jpg')"></div>
+        <div class="bg-slide" data-season="autumn" style="background-image:url('images/autumn.jpg')"></div>
+        <div class="bg-slide" data-season="winter" style="background-image:url('images/winter.jpg')"></div>
+    </div>
+
+    <canvas class="particle-canvas" id="particleCanvas" aria-hidden="true"></canvas>
+
+    <div class="overlay" aria-hidden="true"></div>
+
+    <header class="nav" role="banner">
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">南</div>
+            <div class="brand-text">
+                <h1>南京师范大学</h1>
+                <p>NANJING NORMAL UNIVERSITY · 随园</p>
             </div>
         </div>
 
-        <div class="file-section">
-            <div class="file-list">
-                <h2>已上传的文件</h2>
-                <div id="file-list" class="categories-grid"></div>
+        <nav class="season-nav" aria-label="四季切换">
+            <button class="season-btn is-active" data-season="spring">
+                <span class="dot"></span><span class="label">春</span>
+            </button>
+            <button class="season-btn" data-season="summer">
+                <span class="dot"></span><span class="label">夏</span>
+            </button>
+            <button class="season-btn" data-season="autumn">
+                <span class="dot"></span><span class="label">秋</span>
+            </button>
+            <button class="season-btn" data-season="winter">
+                <span class="dot"></span><span class="label">冬</span>
+            </button>
+        </nav>
+
+        <div class="playback">
+            <button class="toggle-btn" id="toggleBtn" aria-pressed="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+                <span class="toggle-label">自动播放</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <h1>文件上传</h1>
+        
+        <div class="main-container">
+            <div class="upload-section">
+                <div class="upload-box">
+                    <input type="file" id="file-input" multiple>
+                    <label for="file-input">选择文件（支持多文件）</label>
+                    <p>支持各类文件格式，单个文件最大 50MB。</p>
+                    <div id="status"></div>
+                    <div id="upload-progress" class="upload-progress"></div>
+                </div>
+            </div>
+
+            <div class="file-section">
+                <div class="file-list">
+                    <h2>已上传的文件</h2>
+                    <div id="file-list" class="categories-grid"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // ====================== 只需要修改这3行 ======================
-        const GITHUB_USERNAME = "Fionn7"; // 比如：zhangsan
-        const GITHUB_REPO = "Sharing"; // 比如：zhangsan.github.io 或者 my-pdf-site
-        const PDF_FOLDER = "pdfs"; // 存放PDF的文件夹名，不用改
-        const API_BASE = 'https://sharing-h7es.onrender.com';
-        // ============================================================
-        
-        // 文件类型配置
-        const FILE_CATEGORIES = {
-            pdfs: { name: 'PDF文档', icon: '📄', color: '#333' },
-            documents: { name: '文档', icon: '📝', color: '#333' },
-            images: { name: '图片', icon: '🖼️', color: '#333' },
-            videos: { name: '视频', icon: '🎬', color: '#333' },
-            audio: { name: '音频', icon: '🎵', color: '#333' },
-            archives: { name: '压缩包', icon: '📦', color: '#333' },
-            codes: { name: '代码', icon: '💻', color: '#333' },
-            others: { name: '其他', icon: '📁', color: '#333' }
-        };
-        
-        // 获取文件类型
-        function getFileCategory(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const categories = {
-                pdf: 'pdfs',
-                doc: 'documents', docx: 'documents',
-                xls: 'documents', xlsx: 'documents',
-                ppt: 'documents', pptx: 'documents',
-                txt: 'documents',
-                jpg: 'images', jpeg: 'images', png: 'images', gif: 'images', bmp: 'images', svg: 'images',
-                mp4: 'videos', avi: 'videos', mov: 'videos', wmv: 'videos',
-                mp3: 'audio', wav: 'audio', flac: 'audio',
-                zip: 'archives', rar: 'archives', '7z': 'archives', tar: 'archives', gz: 'archives',
-                js: 'codes', html: 'codes', css: 'codes', json: 'codes', py: 'codes', java: 'codes', cpp: 'codes', c: 'codes', xml: 'codes'
-            };
-            return categories[ext] || 'others';
-        }
-        
-        // 获取文件图标
-        function getFileIcon(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const icons = {
-                pdf: '📄',
-                doc: '📝', docx: '📝',
-                xls: '📊', xlsx: '📊',
-                ppt: '📽️', pptx: '📽️',
-                txt: '📃',
-                jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', bmp: '🖼️', svg: '🖼️',
-                mp4: '🎬', avi: '🎬', mov: '🎬', wmv: '🎬',
-                mp3: '🎵', wav: '🎵', flac: '🎵',
-                zip: '📦', rar: '📦', '7z': '📦', tar: '📦', gz: '📦',
-                js: '💻', html: '💻', css: '💻', json: '💻', py: '💻', java: '💻', cpp: '💻', c: '💻', xml: '💻'
-            };
-            return icons[ext] || '📁';
-        }
+    <section class="stats" aria-label="学校概况">
+        <div class="stat-item">
+            <div class="stat-num"><span class="num" data-to="1902">1902</span></div>
+            <div class="stat-label">三江师范学堂 · 肇始</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num"><span class="num" data-to="29">29</span></div>
+            <div class="stat-label">二级学院</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num"><span class="num" data-to="82">82</span></div>
+            <div class="stat-label">本科专业</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num"><span class="num" data-to="15">15</span><span class="plus">+</span></div>
+            <div class="stat-label">学科 ESI 全球前 1%</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num"><span class="num" data-to="3">3</span></div>
+            <div class="stat-label">仙林 · 随园 · 紫金</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-num"><span class="num">双一流</span></div>
+            <div class="stat-label">国家建设高校</div>
+        </div>
+    </section>
 
-        const fileInput = document.getElementById('file-input');
-        const statusDiv = document.getElementById('status');
-        const fileListDiv = document.getElementById('file-list');
-        const uploadProgressDiv = document.getElementById('upload-progress');
+    <footer class="foot">
+        <div class="foot-left">
+            <span class="season-indicator" id="seasonIndicator">春</span>
+            <span class="foot-sep">·</span>
+            <span id="footClock">--:--</span>
+            <span class="foot-sep">·</span>
+            <span class="foot-note">严谨 · 朴实 · 奋发 · 奉献</span>
+        </div>
+        <div class="foot-right">
+            <span>手机 · 平板 · 桌面自适应</span>
+        </div>
+    </footer>
 
-        // 加载已上传的文件列表
-        async function loadFileList() {
-            try {
-                const response = await fetch(`${API_BASE}/api/files`);
-                const result = await response.json().catch(() => ({}));
-
-                if (!response.ok || !result.ok) {
-                    throw new Error(result.message || '加载失败');
-                }
-
-                const files = Array.isArray(result.files) ? result.files : [];
-                fileListDiv.innerHTML = '';
-
-                if (files.length === 0) {
-                    fileListDiv.innerHTML = '<p>当前还没有上传的文件。</p>';
-                    return;
-                }
-                
-                // 按文件夹分类文件
-                const categorizedFiles = {};
-                files.forEach(file => {
-                    const category = getFileCategory(file.name);
-                    if (!categorizedFiles[category]) {
-                        categorizedFiles[category] = [];
-                    }
-                    categorizedFiles[category].push(file);
-                });
-                
-                // 显示分类
-                Object.keys(categorizedFiles).forEach(category => {
-                    const categoryInfo = FILE_CATEGORIES[category] || FILE_CATEGORIES.others;
-                    const categoryDiv = document.createElement('div');
-                    categoryDiv.className = 'file-category';
-                    categoryDiv.innerHTML = `
-                        <h3 class="category-title">${categoryInfo.icon} ${categoryInfo.name} (${categorizedFiles[category].length})</h3>
-                        <div class="category-files"></div>
-                    `;
-                    
-                    const filesContainer = categoryDiv.querySelector('.category-files');
-                    categorizedFiles[category].forEach(file => {
-                        const fileUrl = file.download_url || `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${category}/${file.name}`;
-                        const icon = getFileIcon(file.name);
-                        const item = document.createElement('div');
-                        item.className = 'file-item';
-                        item.innerHTML = `
-                            <span class="file-icon">${icon}</span>
-                            <a href="${fileUrl}" target="_blank" rel="noopener">${file.name}</a>
-                            <button type="button" class="delete-btn" data-name="${file.name}" data-category="${category}">删除</button>
-                        `;
-                        filesContainer.appendChild(item);
-                    });
-                    
-                    fileListDiv.appendChild(categoryDiv);
-                });
-            } catch (error) {
-                fileListDiv.innerHTML = `<p>加载文件列表失败：${error.message || '请稍后重试'}</p>`;
-            }
-        }
-
-        // 创建上传状态项
-        function createFileStatusItem(fileName, fileSize) {
-            const item = document.createElement('div');
-            item.className = 'file-status uploading';
-            const sizeStr = fileSize > 1024 * 1024 
-                ? (fileSize / 1024 / 1024).toFixed(1) + 'MB' 
-                : (fileSize / 1024).toFixed(0) + 'KB';
-            item.innerHTML = `
-                <span class="status-icon">⏳</span>
-                <span class="file-name" title="${fileName}">${fileName}</span>
-                <div class="progress-container">
-                    <div class="mini-progress">
-                        <div class="mini-progress-bar" style="width: 0%"></div>
-                    </div>
-                    <span class="progress-text">0%</span>
-                </div>
-            `;
-            return item;
-        }
-
-        // 使用 XMLHttpRequest 上传文件（支持进度）
-        function uploadFileWithProgress(file, onProgress, onComplete) {
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                const formData = new FormData();
-                formData.append('file', file, file.name);
-                formData.append('filename', file.name);
-
-                // 超时设置（30秒 - Render 免费版限制）
-                xhr.timeout = 30000;
-
-                // 上传进度
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        onProgress(percent);
-                    }
-                });
-
-                // 完成
-                xhr.addEventListener('load', () => {
-                    try {
-                        const result = JSON.parse(xhr.responseText);
-                        if (xhr.status >= 200 && xhr.status < 300 && result.ok) {
-                            resolve(result);
-                        } else {
-                            // 显示详细错误信息
-                            let errorMsg = result.message || '上传失败';
-                            if (result.details) {
-                                errorMsg += ' (' + xhr.status + ')';
-                            }
-                            reject(new Error(errorMsg));
-                        }
-                    } catch (e) {
-                        reject(new Error('服务器响应格式错误 (' + xhr.status + ')'));
-                    }
-                });
-
-                // 错误
-                xhr.addEventListener('error', () => {
-                    reject(new Error('网络错误'));
-                });
-
-                // 超时
-                xhr.addEventListener('timeout', () => {
-                    reject(new Error('上传超时'));
-                });
-
-                xhr.open('POST', `${API_BASE}/api/upload`);
-                xhr.send(formData);
-            });
-        }
-
-        // 上传文件
-        fileInput.addEventListener('change', async (e) => {
-            const files = e.target.files;
-            if (!files || files.length === 0) return;
-            
-            // 检查文件大小 - 50MB 限制
-            const maxSize = 50 * 1024 * 1024;
-            for (const file of files) {
-                if (file.size > maxSize) {
-                    const sizeStr = (file.size / 1024 / 1024).toFixed(1) + 'MB';
-                    statusDiv.innerHTML = `<p style="color: red;">文件 ${file.name} (${sizeStr}) 超过 50MB 限制。</p>`;
-                    return;
-                }
-            }
-
-            statusDiv.innerHTML = `<p style="color: #666;">正在上传 ${files.length} 个文件...</p>`;
-            uploadProgressDiv.innerHTML = '';
-
-            const fileStatusItems = [];
-            
-            // 创建所有文件的状态项
-            for (const file of files) {
-                const item = createFileStatusItem(file.name, file.size);
-                uploadProgressDiv.appendChild(item);
-                fileStatusItems.push({ file, item });
-            }
-
-            let successCount = 0;
-            let failCount = 0;
-
-            // 逐个上传文件
-            for (const { file, item } of fileStatusItems) {
-                try {
-                    const result = await uploadFileWithProgress(
-                        file,
-                        (percent) => {
-                            const bar = item.querySelector('.mini-progress-bar');
-                            const text = item.querySelector('.progress-text');
-                            bar.style.width = percent + '%';
-                            text.textContent = percent + '%';
-                        }
-                    );
-
-                    item.className = 'file-status success';
-                    item.querySelector('.status-icon').textContent = '✅';
-                    item.querySelector('.mini-progress-bar').style.width = '100%';
-                    item.querySelector('.progress-text').textContent = '完成';
-                    successCount++;
-                } catch (error) {
-                    item.className = 'file-status error';
-                    item.querySelector('.status-icon').textContent = '❌';
-                    item.querySelector('.progress-text').textContent = '失败';
-                    console.error('Upload error:', file.name, error);
-                    failCount++;
-                }
-            }
-
-            if (failCount === 0) {
-                statusDiv.innerHTML = `<p style="color: green;">全部 ${successCount} 个文件上传成功！</p>`;
-            } else {
-                statusDiv.innerHTML = `<p style="color: orange;">上传完成：成功 ${successCount} 个，失败 ${failCount} 个</p>`;
-            }
-            
-            // 5秒后清除进度显示
-            setTimeout(() => {
-                uploadProgressDiv.innerHTML = '';
-            }, 5000);
-            
-            loadFileList();
-        });
-
-        fileListDiv.addEventListener('click', async (e) => {
-            const button = e.target.closest('.delete-btn');
-            if (!button) return;
-
-            const name = button.dataset.name;
-            const category = button.dataset.category;
-            if (!name) return;
-
-            if (!window.confirm(`确认删除 ${name} 吗？`)) return;
-
-            statusDiv.innerHTML = `<p>正在删除 ${name}...</p>`;
-
-            try {
-                const deleteUrl = category 
-                    ? `${API_BASE}/api/files/${encodeURIComponent(name)}?category=${encodeURIComponent(category)}`
-                    : `${API_BASE}/api/files/${encodeURIComponent(name)}`;
-                const response = await fetch(deleteUrl, { method: 'DELETE' });
-                const result = await response.json().catch(() => ({}));
-
-                if (!response.ok || !result.ok) {
-                    throw new Error(result.message || '删除失败');
-                }
-
-                statusDiv.innerHTML = `<p style="color: green;">已删除 ${name}</p>`;
-                loadFileList();
-            } catch (error) {
-                statusDiv.innerHTML = `<p style="color: red;">删除失败：${error.message || '请稍后重试'}</p>`;
-            }
-        });
-
-        // 页面加载时显示文件列表
-        loadFileList();
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
