@@ -23,7 +23,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3100;
 
 // 文件大小限制 - 50MB（Render 免费版内存和超时限制）
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 // 使用内存存储
 const upload = multer({
@@ -83,7 +83,7 @@ function getFileCategory(ext) {
 
 // 请求超时设置（30秒 - Render 免费版限制）
 app.use((req, res, next) => {
-  res.setTimeout(30000, () => {
+  res.setTimeout(60000, () => {
     console.log('Request timeout');
     if (!res.headersSent) {
       res.status(408).json({ ok: false, message: '请求超时，请使用更小的文件或重试' });
