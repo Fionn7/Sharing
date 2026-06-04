@@ -104,57 +104,121 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname)));
 
-app.get('/health', (_, res) => {
+app.get('/health', (req, res) => {
+  console.log('收到健康检查请求');
   res.json({ ok: true, message: 'backend-ready' });
 });
 
-app.get('/api/files', async (_, res) => {
+// 测试端点
+app.get('/api/test', (req, res) => {
+  console.log('收到测试请求');
+  res.json({ ok: true, message: '测试成功', timestamp: Date.now() });
+});
+
+app.get('/api/files', async (req, res) => {
   try {
+    console.log('收到文件列表请求');
     // 支持的文件夹列表
     const folders = ['pdfs', 'documents', 'images', 'videos', 'audio', 'archives', 'codes', 'others'];
     const allFiles = [];
     
-    const headers = {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'sharing-file-backend',
-    };
-
-    if (GITHUB_TOKEN) {
-      headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
-    }
-
-    // 获取所有文件夹的文件
-    for (const folder of folders) {
-      try {
-        const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}`;
-        const response = await fetch(url, { headers });
-        
-        if (response.ok) {
-          const data = await response.json().catch(() => []);
-          if (Array.isArray(data)) {
-            // 为每个文件添加文件夹信息
-            data.forEach(file => {
-              if (!file.name.startsWith('.')) { // 忽略隐藏文件
+    // 先尝试本地文件系统
+    const hasLocalFiles = await checkLocalFiles(folders);
+    
+    if (hasLocalFiles) {
+      // 使用本地文件系统
+      console.log('使用本地文件系统');
+      for (const folder of folders) {
+        const folderPath = path.join(__dirname, folder);
+        if (fs.existsSync(folderPath)) {
+          try {
+            const files = fs.readdirSync(folderPath);
+            files.forEach(file => {
+              if (!file.startsWith('.')) {
+                const filePath = path.join(folderPath, file);
+                const stat = fs.statSync(filePath);
                 allFiles.push({
-                  ...file,
-                  folder: folder
+                  name: file,
+                  path: `${folder}/${file}`,
+                  sha: file,
+                  size: stat.size,
+                  last_modified: stat.mtime,
+                  folder: folder,
+                  type: getFileCategory(path.extname(file).toLowerCase().slice(1)).type,
                 });
               }
             });
+          } catch (error) {
+            console.log(`读取本地文件夹 ${folder} 失败:`, error.message);
           }
         }
-      } catch (error) {
-        console.log(`获取 ${folder} 文件夹失败:`, error.message);
+      }
+    } else {
+      // 使用GitHub API
+      const headers = {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'sharing-file-backend',
+      };
+
+      if (GITHUB_TOKEN) {
+        headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+        console.log('使用 GITHUB_TOKEN 认证');
+      } else {
+        console.log('未配置 GITHUB_TOKEN，使用匿名访问');
+      }
+
+      // 获取所有文件夹的文件
+      for (const folder of folders) {
+        try {
+          const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}`;
+          console.log(`正在获取文件夹: ${folder}`);
+          const response = await fetch(url, { headers });
+          
+          if (response.ok) {
+            const data = await response.json().catch(() => []);
+            if (Array.isArray(data)) {
+              console.log(`文件夹 ${folder} 包含 ${data.length} 个文件`);
+              // 为每个文件添加文件夹信息
+              data.forEach(file => {
+                if (!file.name.startsWith('.')) { // 忽略隐藏文件
+                  allFiles.push({
+                    ...file,
+                    folder: folder
+                  });
+                }
+              });
+            }
+          } else {
+            console.log(`获取文件夹 ${folder} 失败，状态码: ${response.status}`);
+          }
+        } catch (error) {
+          console.log(`获取 ${folder} 文件夹失败:`, error.message);
+        }
       }
     }
 
+    console.log(`共获取到 ${allFiles.length} 个文件`);
     return res.json({ ok: true, files: allFiles });
   } catch (error) {
-    console.error(error);
+    console.error('获取文件列表出错:', error);
     return res.status(500).json({ ok: false, message: '获取文件列表失败', error: error.message });
   }
 });
+
+// 检查是否存在本地文件
+async function checkLocalFiles(folders) {
+  for (const folder of folders) {
+    const folderPath = path.join(__dirname, folder);
+    if (fs.existsSync(folderPath)) {
+      const files = fs.readdirSync(folderPath);
+      if (files.length > 0 && !files.every(f => f.startsWith('.'))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 app.delete('/api/files/:name', async (req, res) => {
   try {
