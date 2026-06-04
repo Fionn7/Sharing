@@ -15,7 +15,7 @@
                         secondary: '#8b5cf6',
                     },
                     fontFamily: {
-                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                        inter: ['Inter', 'system-ui', 'sans-serif', 'Arial', 'Helvetica'],
                     },
                 }
             }
@@ -39,13 +39,13 @@
                 border: 1px solid rgba(255, 255, 255, 0.3);
             }
             .gradient-text {
-                background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
+            background: linear-gradient(90deg, #f8fafc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             }
             .gradient-bg {
-                background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+                background: linear-gradient(135deg, #00643e27);
             }
             .scroll-reveal {
                 opacity: 0;
@@ -69,10 +69,8 @@
         <div class="container mx-auto px-6">
             <div class="glass rounded-full px-6 py-3 flex justify-between items-center">
                 <div class="flex items-center space-x-2">
-                    <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
-                        <i class="fa fa-share-alt text-white text-sm"></i>
-                    </div>
-                    <span class="text-lg font-bold gradient-text">Sharing</span>
+
+                    <span class="text-2xl font-bold gradient-text">Sharing</span>
                 </div>
                 
                 <div class="hidden md:flex items-center space-x-8">
@@ -145,10 +143,8 @@
             <div class="glass rounded-2xl p-8">
                 <div class="flex flex-col md:flex-row justify-between items-center">
                     <div class="flex items-center space-x-2 mb-4 md:mb-0">
-                        <div class="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
-                            <i class="fa fa-share-alt text-white text-sm"></i>
-                        </div>
-                        <span class="text-lg font-bold gradient-text">Sharing</span>
+
+                        <span class="text-2xl font-bold gradient-text">Sharing</span>
                     </div>
                     
                     <div class="text-white/70 text-sm text-center md:text-right">
