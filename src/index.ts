@@ -57,11 +57,36 @@ export default {
     }
 
     if (pathname === '/api/debug') {
+      // 测试 GitHub API 连接
+      let githubStatus = 'unknown';
+      let fileCount = 0;
+      if (githubToken) {
+        try {
+          const testUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files`;
+          const testResp = await fetch(testUrl, {
+            headers: {
+              'Authorization': `Bearer ${githubToken}`,
+              'Accept': 'application/vnd.github+json'
+            }
+          });
+          githubStatus = `${testResp.status} ${testResp.statusText}`;
+          if (testResp.ok) {
+            const data = await testResp.json();
+            if (Array.isArray(data)) {
+              fileCount = data.length;
+            }
+          }
+        } catch (e) {
+          githubStatus = `error: ${e instanceof Error ? e.message : 'unknown'}`;
+        }
+      }
       return jsonResponse({
         ok: true,
         tokenConfigured: !!githubToken,
         owner: githubOwner,
-        repo: githubRepo
+        repo: githubRepo,
+        githubStatus,
+        filesInRoot: fileCount
       });
     }
 
@@ -101,10 +126,16 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
       }
     });
 
-    if (!response.ok) return;
+    if (!response.ok) {
+      console.error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
+      return;
+    }
 
     const items = await response.json();
-    if (!Array.isArray(items)) return;
+    if (!Array.isArray(items)) {
+      console.error(`Unexpected response for ${path}:`, items);
+      return;
+    }
 
     for (const item of items) {
       if (item.type === 'dir') {
@@ -115,17 +146,18 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
         files.push({
           name: item.name,
           path: item.path,
-          folder: item.path.split('/').slice(0, -1).join('/'),
+          folder: item.path.substring(0, item.path.lastIndexOf('/')),
           size: item.size,
           type: category.name,
           icon: category.icon,
-          last_modified: item.updated_at
+          last_modified: item.updated_at || item.sha
         });
       }
     }
   }
 
   await traverse('files');
+  console.log(`Found ${files.length} files`);
   return files;
 }
 
