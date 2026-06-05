@@ -85,6 +85,20 @@ export default {
       return handleStaticFile('index.html');
     }
 
+    // 调试端点 - 检查配置状态
+    if (pathname === '/api/debug') {
+      return new Response(JSON.stringify({
+        ok: true,
+        config: {
+          hasToken: !!githubToken,
+          owner: githubOwner,
+          repo: githubRepo,
+        }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     if (pathname === '/api/files' && method === 'GET') {
       return handleGetFiles(githubToken, githubOwner, githubRepo);
     }
@@ -552,13 +566,38 @@ async function handleStaticFile(filename: string): Promise<Response> {
 
 async function handleGetFiles(githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
+    if (!githubToken) {
+      return new Response(JSON.stringify({ 
+        ok: false, 
+        message: 'GITHUB_TOKEN 未配置，请在 Cloudflare Dashboard 中设置 Secret' 
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
     const files = await fetchFilesFromGitHub(githubToken, githubOwner, githubRepo);
     
-    return new Response(JSON.stringify({ ok: true, files }), {
+    if (files.length === 0) {
+      return new Response(JSON.stringify({ 
+        ok: true, 
+        files: [], 
+        message: '仓库中没有文件，请先上传一些文件到 files 目录' 
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    return new Response(JSON.stringify({ ok: true, files, count: files.length }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: '获取文件列表失败', error: error.message }), {
+    return new Response(JSON.stringify({ 
+      ok: false, 
+      message: '获取文件列表失败', 
+      error: error.message,
+      stack: error.stack
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -567,10 +606,10 @@ async function handleGetFiles(githubToken: string, githubOwner: string, githubRe
 
 async function fetchFilesFromGitHub(githubToken: string, githubOwner: string, githubRepo: string): Promise<FileMetadata[]> {
   const allFiles: FileMetadata[] = [];
-  let page = 1;
   
-  while (true) {
-    const apiUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files?page=${page}&per_page=100`;
+  // 递归获取目录内容
+  async function fetchDirectory(path: string): Promise<void> {
+    const apiUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/${path}`;
     const response = await fetch(apiUrl, {
       headers: {
         Accept: 'application/vnd.github+json',
@@ -579,34 +618,40 @@ async function fetchFilesFromGitHub(githubToken: string, githubOwner: string, gi
       },
     });
     
-    if (!response.ok) break;
-    const files = await response.json();
-    if (!files || files.length === 0) break;
+    if (!response.ok) return;
     
-    for (const file of files) {
-      if (file.type !== 'file') continue;
-      
-      const key = file.path;
-      const parts = key.split('/');
-      const filename = parts[parts.length - 1];
-      const folder = parts.slice(0, -1).join('/');
-      const ext = filename.split('.').pop()?.toLowerCase() || '';
-      const fileCategory = getFileCategory(ext);
-      
-      allFiles.push({
-        name: filename,
-        filename: filename,
-        path: key,
-        folder: folder,
-        type: fileCategory.type,
-        icon: fileCategory.icon,
-        size: file.size,
-        last_modified: file.updated_at,
-        downloadUrl: `/download/${key}`,
-      });
+    const items = await response.json();
+    if (!Array.isArray(items)) return;
+    
+    for (const item of items) {
+      if (item.type === 'dir') {
+        // 递归获取子目录
+        await fetchDirectory(item.path);
+      } else if (item.type === 'file') {
+        const key = item.path;
+        const parts = key.split('/');
+        const filename = parts[parts.length - 1];
+        const folder = parts.slice(0, -1).join('/');
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const fileCategory = getFileCategory(ext);
+        
+        allFiles.push({
+          name: filename,
+          filename: filename,
+          path: key,
+          folder: folder,
+          type: fileCategory.type,
+          icon: fileCategory.icon,
+          size: item.size,
+          last_modified: item.updated_at || new Date().toISOString(),
+          downloadUrl: `/download/${key}`,
+        });
+      }
     }
-    page++;
   }
+  
+  // 从 files 目录开始递归
+  await fetchDirectory('files');
   
   return allFiles;
 }
