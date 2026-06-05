@@ -2,6 +2,12 @@ name = "sharing"
 compatibility_date = "2026-06-05"
 compatibility_flags = ["nodejs_compat"]
 
+# Worker 入口文件
+main = "_worker.js"
+
+# Pages 配置
+pages_build_output_dir = "public"
+
 [observability]
 enabled = true
 
