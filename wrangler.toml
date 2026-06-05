@@ -7,11 +7,3 @@ enabled = true
 
 [vars]
 PORT = "3100"
-
-# 配置 assets 目录为 public，只包含静态资源
-[assets]
-directory = "public"
-
-# 配置构建命令
-[build]
-command = "npm install"
