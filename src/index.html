@@ -397,28 +397,19 @@
             const problemsFound = [];
             
             for (const expectedFilename of recentlyUploadedFiles) {
-                // 查找匹配的文件（精确匹配或部分匹配）
-                const foundFile = files.find(f => f.name === expectedFilename);
-                const similarFile = files.find(f => {
-                    // 检查文件名是否有相似性（如扩展名相同）
-                    const ext1 = expectedFilename.split('.').pop();
-                    const ext2 = f.name.split('.').pop();
-                    return ext1 === ext2 && f.name !== expectedFilename;
-                });
+                console.log(`Checking for file: ${expectedFilename}`);
                 
-                if (!foundFile && similarFile) {
-                    // 发现问题！文件名被修改了
-                    problemsFound.push({
-                        expected: expectedFilename,
-                        actual: similarFile.name,
-                        file: similarFile
-                    });
-                } else if (foundFile) {
+                // 查找精确匹配
+                const foundFile = files.find(f => f.name === expectedFilename);
+                
+                if (foundFile) {
+                    console.log(`Found exact match: ${foundFile.name}`);
                     // 检查文件名是否有中文字符丢失
                     const hasChineseInExpected = /[\u4e00-\u9fa5]/.test(expectedFilename);
                     const hasChineseInActual = /[\u4e00-\u9fa5]/.test(foundFile.name);
                     
                     if (hasChineseInExpected && !hasChineseInActual) {
+                        console.log('Detected Chinese characters lost');
                         problemsFound.push({
                             expected: expectedFilename,
                             actual: foundFile.name,
@@ -426,6 +417,10 @@
                             chineseLost: true
                         });
                     }
+                } else {
+                    console.log('No exact match found');
+                    // 如果没有精确匹配，尝试查找是否是上传时间最近的文件
+                    // 或者我们就不显示诊断，让用户自己查看
                 }
             }
             

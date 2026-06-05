@@ -522,7 +522,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     // 直接从 file 读取二进制
     const binaryContent = await file.arrayBuffer();
     
-    // 首先检查文件是否存在 - 智能查找（考虑 GitHub 可能修改文件名）
+    // 首先检查文件是否存在 - 只做精确匹配
     const checkResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
       headers: getGitHubHeaders(token)
     });
@@ -532,38 +532,13 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       const assets = await checkResp.json();
       console.log('Current assets:', assets.map((a: any) => `[${a.id}] ${a.name}`));
       
-      // 多种方式查找：
-      // 1. 精确匹配
+      // 只做精确匹配，避免误删其他文件
       existingAsset = assets.find((a: any) => a.name === filename);
-      // 2. 小写匹配
-      if (!existingAsset) {
-        existingAsset = assets.find((a: any) => a.name.toLowerCase() === filename.toLowerCase());
-      }
-      // 3. 扩展名匹配（只看扩展名是否相同，且文件名开头相似）
-      if (!existingAsset) {
-        const ext = filename.includes('.') ? filename.split('.').pop() : '';
-        const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
-        const baseNameLower = baseName.toLowerCase();
-        
-        existingAsset = assets.find((a: any) => {
-          const aExt = a.name.includes('.') ? a.name.split('.').pop() : '';
-          if (ext && aExt && ext.toLowerCase() === aExt.toLowerCase()) {
-            // 检查文件名开头是否有相似性（前3个字符）
-            const aBaseName = a.name.includes('.') ? a.name.substring(0, a.name.lastIndexOf('.')) : a.name;
-            const aBaseLower = aBaseName.toLowerCase();
-            
-            // 检查是否有共同的字符序列
-            if (baseNameLower.substring(0, Math.min(3, baseNameLower.length)) === 
-                aBaseLower.substring(0, Math.min(3, aBaseLower.length))) {
-              return true;
-            }
-          }
-          return false;
-        });
-      }
       
       if (existingAsset) {
-        console.log(`Found matching file to replace: "${existingAsset.name}" (ID: ${existingAsset.id})`);
+        console.log(`Found exact match to replace: "${existingAsset.name}" (ID: ${existingAsset.id})`);
+      } else {
+        console.log(`No exact match found for "${filename}"`);
       }
     }
     
@@ -633,80 +608,14 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
 
     console.log('Upload response status:', response.status);
 
-    // 如果 422 already_exists，再次尝试删除并上传
+    // 如果 422 already_exists，记录问题并返回
     if (!response.ok && response.status === 422) {
       const errorText = await response.text();
-      console.error('Got 422, checking error:', errorText);
+      console.error('Got 422 error:', errorText);
       
       if (errorText.includes('already_exists')) {
-        console.log('File still exists! Trying to delete again, wait longer, then re-upload...');
-        
-        // 再次查找并删除文件（使用相同的智能查找逻辑）
-        const checkAgainResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
-          headers: getGitHubHeaders(token)
-        });
-        
-        if (checkAgainResp.ok) {
-          const assets = await checkAgainResp.json();
-          console.log('Assets before second delete:', assets.map((a: any) => `[${a.id}] ${a.name}`));
-          
-          // 使用与第一次相同的智能查找逻辑
-          let assetToDelete: any = null;
-          // 1. 精确匹配
-          assetToDelete = assets.find((a: any) => a.name === filename);
-          // 2. 小写匹配
-          if (!assetToDelete) {
-            assetToDelete = assets.find((a: any) => a.name.toLowerCase() === filename.toLowerCase());
-          }
-          // 3. 扩展名匹配
-          if (!assetToDelete) {
-            const ext = filename.includes('.') ? filename.split('.').pop() : '';
-            const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
-            const baseNameLower = baseName.toLowerCase();
-            
-            assetToDelete = assets.find((a: any) => {
-              const aExt = a.name.includes('.') ? a.name.split('.').pop() : '';
-              if (ext && aExt && ext.toLowerCase() === aExt.toLowerCase()) {
-                const aBaseName = a.name.includes('.') ? a.name.substring(0, a.name.lastIndexOf('.')) : a.name;
-                const aBaseLower = aBaseName.toLowerCase();
-                if (baseNameLower.substring(0, Math.min(3, baseNameLower.length)) === 
-                    aBaseLower.substring(0, Math.min(3, aBaseLower.length))) {
-                  return true;
-                }
-              }
-              return false;
-            });
-          }
-          
-          if (assetToDelete) {
-            console.log(`Deleting asset again: [${assetToDelete.id}] ${assetToDelete.name}`);
-            const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${assetToDelete.id}`, {
-              method: 'DELETE',
-              headers: getGitHubHeaders(token)
-            });
-            console.log(`Second delete response: ${deleteResp.status}`);
-          } else {
-            console.log('No matching asset found to delete on second attempt');
-          }
-        }
-        
-        // 等待更久，确保 GitHub 完全处理删除
-        console.log('Waiting 5 seconds for GitHub consistency...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        // 再次尝试上传
-        console.log('Re-uploading file...');
-        response = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: {
-            ...getUploadHeaders(token),
-            'Content-Type': 'application/octet-stream',
-            'Content-Length': file.size.toString(),
-            'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
-          },
-          body: binaryContent
-        });
-        console.log('Second upload response status:', response.status);
+        console.log('File already exists but no exact match found. This might be because GitHub modified the filename.');
+        console.log('Please check the current assets list and manually delete the conflicting file if needed.');
       }
     }
 
