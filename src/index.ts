@@ -55,7 +55,7 @@ interface Env {
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
-  FILE_METADATA: KVNamespace;
+  FILE_METADATA?: KVNamespace;
 }
 
 export default {
@@ -576,21 +576,31 @@ async function handleStaticFile(filename: string): Promise<Response> {
   });
 }
 
-async function handleGetFiles(kv: KVNamespace, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleGetFiles(kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
-    // 优先从 KV 读取
-    const cachedData = await kv.get(KV_FILE_LIST_KEY, 'json');
-    
-    if (cachedData) {
-      return new Response(JSON.stringify({ ok: true, files: cachedData, source: 'cache' }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
+    if (kv) {
+      try {
+        const cachedData = await kv.get(KV_FILE_LIST_KEY, 'json');
+        if (cachedData) {
+          return new Response(JSON.stringify({ ok: true, files: cachedData, source: 'cache' }), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      } catch (kvError) {
+        console.warn('KV 读取失败，降级到 GitHub API:', kvError);
+      }
     }
     
-    // 如果 KV 中没有，从 GitHub 获取并缓存
     const files = await fetchFilesFromGitHub(githubToken, githubOwner, githubRepo);
-    await kv.put(KV_FILE_LIST_KEY, JSON.stringify(files));
-    await kv.put(KV_LAST_SYNC_KEY, new Date().toISOString());
+    
+    if (kv) {
+      try {
+        await kv.put(KV_FILE_LIST_KEY, JSON.stringify(files));
+        await kv.put(KV_LAST_SYNC_KEY, new Date().toISOString());
+      } catch (kvError) {
+        console.warn('KV 写入失败:', kvError);
+      }
+    }
     
     return new Response(JSON.stringify({ ok: true, files, source: 'github' }), {
       headers: { 'Content-Type': 'application/json' }
@@ -603,13 +613,20 @@ async function handleGetFiles(kv: KVNamespace, githubToken: string, githubOwner:
   }
 }
 
-async function handleSyncFiles(kv: KVNamespace, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleSyncFiles(kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
     const files = await fetchFilesFromGitHub(githubToken, githubOwner, githubRepo);
-    await kv.put(KV_FILE_LIST_KEY, JSON.stringify(files));
-    await kv.put(KV_LAST_SYNC_KEY, new Date().toISOString());
     
-    return new Response(JSON.stringify({ ok: true, count: files.length, message: '同步成功' }), {
+    if (kv) {
+      try {
+        await kv.put(KV_FILE_LIST_KEY, JSON.stringify(files));
+        await kv.put(KV_LAST_SYNC_KEY, new Date().toISOString());
+      } catch (kvError) {
+        console.warn('KV 写入失败:', kvError);
+      }
+    }
+    
+    return new Response(JSON.stringify({ ok: true, count: files.length, message: '同步成功', kv_enabled: !!kv }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
@@ -666,7 +683,7 @@ async function fetchFilesFromGitHub(githubToken: string, githubOwner: string, gi
   return allFiles;
 }
 
-async function handleDeleteFile(filename: string, category: string, kv: KVNamespace, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleDeleteFile(filename: string, category: string, kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
     if (!filename) {
       return new Response(JSON.stringify({ ok: false, message: '缺少文件名参数' }), {
@@ -728,8 +745,13 @@ async function handleDeleteFile(filename: string, category: string, kv: KVNamesp
       });
     }
     
-    // 更新 KV 缓存
-    await updateKVCache(kv, key);
+    if (kv) {
+      try {
+        await updateKVCache(kv, key);
+      } catch (kvError) {
+        console.warn('KV 更新失败:', kvError);
+      }
+    }
     
     return new Response(JSON.stringify({ ok: true, message: '删除成功', file: filename }), {
       headers: { 'Content-Type': 'application/json' }
@@ -742,7 +764,7 @@ async function handleDeleteFile(filename: string, category: string, kv: KVNamesp
   }
 }
 
-async function handleUpload(request: Request, kv: KVNamespace, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleUpload(request: Request, kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
     const contentType = request.headers.get('content-type');
     if (!contentType || !contentType.includes('multipart/form-data')) {
@@ -806,8 +828,13 @@ async function handleUpload(request: Request, kv: KVNamespace, githubToken: stri
       });
     }
     
-    // 更新 KV 缓存
-    await updateKVCacheWithNewFile(kv, key, safeFilename, folder, fileCategory, fileSize);
+    if (kv) {
+      try {
+        await updateKVCacheWithNewFile(kv, key, safeFilename, folder, fileCategory, fileSize);
+      } catch (kvError) {
+        console.warn('KV 更新失败:', kvError);
+      }
+    }
     
     return new Response(JSON.stringify({
       ok: true,
@@ -897,7 +924,7 @@ async function handleDownload(path: string, githubToken: string, githubOwner: st
     return new Response(response.body, {
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}`,
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
         'Content-Length': contentLength || '',
       },
     });
