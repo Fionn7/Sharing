@@ -167,8 +167,16 @@
                                 📁 其他
                             </button>
                         </div>
+
+                        <!-- 搜索框 -->
+                        <div class="mt-4">
+                            <div class="relative">
+                                <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
+                                <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
+                            </div>
+                        </div>
                         
-                        <div class="space-y-2" id="fileList">
+                        <div class="space-y-2 mt-4" id="fileList">
                             <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
                                 <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
                                     <i class="fa fa-file-pdf-o text-red-400"></i>
@@ -261,6 +269,24 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
+        // 估算上传时间
+        function estimateUploadTime(fileSizeBytes) {
+            const avgUploadSpeedKBps = 500; // 假设平均上传速度 500 KB/s
+            const estimatedSeconds = Math.ceil(fileSizeBytes / (avgUploadSpeedKBps * 1024));
+            
+            if (estimatedSeconds < 60) {
+                return `预计需要 ${estimatedSeconds} 秒`;
+            } else {
+                const minutes = Math.floor(estimatedSeconds / 60);
+                const seconds = estimatedSeconds % 60;
+                if (seconds === 0) {
+                    return `预计需要 ${minutes} 分钟`;
+                } else {
+                    return `预计需要 ${minutes} 分钟 ${seconds} 秒`;
+                }
+            }
+        }
+
         function getFileIconClass(filename) {
             const ext = filename.split('.').pop().toLowerCase();
             if (['pdf'].includes(ext)) return 'text-red-400';
@@ -309,32 +335,66 @@
 
         let currentCategory = 'all';
         let allFilesData = [];
+        let searchQuery = '';
+        let selectedFiles = new Set();
 
         function displayFiles(files) {
             allFilesData = files;
-            filterFilesByCategory();
+            filterFiles();
         }
 
-        function filterFilesByCategory() {
-            const filteredFiles = currentCategory === 'all' 
-                ? allFilesData 
-                : allFilesData.filter(file => file.type === currentCategory);
+        function filterFiles() {
+            let filteredFiles = allFilesData;
             
-            if (filteredFiles.length === 0) {
+            // 按分类过滤
+            if (currentCategory !== 'all') {
+                filteredFiles = filteredFiles.filter(file => file.type === currentCategory);
+            }
+            
+            // 按搜索关键词过滤
+            if (searchQuery.trim()) {
+                const query = searchQuery.trim().toLowerCase();
+                filteredFiles = filteredFiles.filter(file => {
+                    // 文件名搜索
+                    if (file.name.toLowerCase().includes(query)) return true;
+                    // 日期搜索（支持中文日期如"2026/6/6"或"6月"）
+                    if (file.last_modified) {
+                        const dateStr = formatDate(file.last_modified);
+                        if (dateStr.includes(query)) return true;
+                        const dateObj = new Date(file.last_modified);
+                        const month = (dateObj.getMonth() + 1) + '月';
+                        const day = dateObj.getDate() + '日';
+                        if (month.includes(query) || day.includes(query)) return true;
+                    }
+                    return false;
+                });
+            }
+            
+            renderFileList(filteredFiles);
+        }
+
+        function renderFileList(files) {
+            if (files.length === 0) {
                 fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">暂无文件</div></div>';
+                updateBulkActions();
                 return;
             }
 
-            fileList.innerHTML = filteredFiles.map(file => {
+            fileList.innerHTML = files.map(file => {
                 const iconClass = getFileIconClass(file.name);
                 const icon = getFileIcon(file.name);
                 const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
+                const isSelected = selectedFiles.has(file.path);
+                
                 return `
-                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group" onclick="downloadFile('${escapeHTML(file.path)}')">
+                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-primary/20 border border-primary/50' : ''}" data-path="${escapeHTML(file.path)}">
+                        <div class="w-6 h-6 mr-3 flex items-center justify-center">
+                            <input type="checkbox" class="file-checkbox w-4 h-4 rounded border-white/30 bg-white/5 accent-primary cursor-pointer" data-path="${escapeHTML(file.path)}" ${isSelected ? 'checked' : ''}>
+                        </div>
                         <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
-                        <div class="flex-1">
+                        <div class="flex-1" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
                             <div class="text-sm">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1">大文件</span>' : ''}</div>
                         </div>
                         <div class="text-xs text-white/50">${formatFileSize(file.size)}</div>
@@ -345,6 +405,40 @@
                     </div>
                 `;
             }).join('');
+            
+            // 添加复选框事件监听
+            document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                    const path = checkbox.dataset.path;
+                    if (checkbox.checked) {
+                        selectedFiles.add(path);
+                    } else {
+                        selectedFiles.delete(path);
+                    }
+                    updateBulkActions();
+                });
+            });
+            
+            // 添加整行点击选中事件
+            document.querySelectorAll('[data-path]').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'BUTTON' && !e.target.closest('button') && e.target.tagName !== 'INPUT') {
+                        const checkbox = row.querySelector('.file-checkbox');
+                        checkbox.checked = !checkbox.checked;
+                        const path = row.dataset.path;
+                        if (checkbox.checked) {
+                            selectedFiles.add(path);
+                        } else {
+                            selectedFiles.delete(path);
+                        }
+                        updateBulkActions();
+                        renderFileList(files);
+                    }
+                });
+            });
+            
+            updateBulkActions();
         }
 
         // 分类过滤器事件监听
@@ -354,9 +448,109 @@
                 document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentCategory = btn.dataset.category;
-                filterFilesByCategory();
+                filterFiles();
             }
         });
+
+        // 搜索框事件监听
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            searchQuery = e.target.value;
+            filterFiles();
+        });
+
+        // 更新批量操作UI
+        function updateBulkActions() {
+            let bulkActionsEl = document.getElementById('bulkActions');
+            if (!bulkActionsEl) {
+                // 创建批量操作栏
+                bulkActionsEl = document.createElement('div');
+                bulkActionsEl.id = 'bulkActions';
+                bulkActionsEl.className = 'flex items-center justify-between bg-primary/20 border border-primary/50 rounded-xl p-4 mb-4';
+                const fileListContainer = document.getElementById('fileList').parentElement;
+                fileListContainer.insertBefore(bulkActionsEl, document.getElementById('fileList'));
+            }
+            
+            if (selectedFiles.size > 0) {
+                bulkActionsEl.classList.remove('hidden');
+                bulkActionsEl.innerHTML = `
+                    <div class="text-sm">
+                        <span class="text-white/80">已选择 <span class="text-white font-bold">${selectedFiles.size}</span> 个文件</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="bulkDownloadBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors">
+                            <i class="fa fa-download mr-2"></i>批量下载
+                        </button>
+                        <button id="bulkDeleteBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors">
+                            <i class="fa fa-trash mr-2"></i>批量删除
+                        </button>
+                        <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors">
+                            取消全选
+                        </button>
+                    </div>
+                `;
+                
+                document.getElementById('bulkDownloadBtn').addEventListener('click', bulkDownload);
+                document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDelete);
+                document.getElementById('deselectAllBtn').addEventListener('click', () => {
+                    selectedFiles.clear();
+                    filterFiles();
+                });
+            } else {
+                bulkActionsEl.classList.add('hidden');
+            }
+        }
+
+        // 批量下载
+        async function bulkDownload() {
+            const filesToDownload = allFilesData.filter(file => selectedFiles.has(file.path));
+            if (filesToDownload.length === 0) return;
+            
+            showToast(`正在下载 ${filesToDownload.length} 个文件...`, 'info');
+            
+            for (const file of filesToDownload) {
+                downloadFile(file.path);
+                // 延迟一下，避免同时下载太多
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+
+        // 批量删除
+        async function bulkDelete() {
+            const filesToDelete = allFilesData.filter(file => selectedFiles.has(file.path));
+            if (filesToDelete.length === 0) return;
+            
+            if (!confirm(`确定要删除 ${filesToDelete.length} 个文件吗？此操作不可恢复！`)) {
+                return;
+            }
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const file of filesToDelete) {
+                try {
+                    const response = await fetch(`/api/files/${encodeURIComponent(file.path.startsWith('release/') ? file.path : file.name)}?category=${encodeURIComponent(file.folder)}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.ok) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch {
+                    failCount++;
+                }
+            }
+            
+            selectedFiles.clear();
+            loadFiles();
+            
+            if (failCount === 0) {
+                showToast(`成功删除 ${successCount} 个文件`, 'success');
+            } else {
+                showToast(`删除完成：成功 ${successCount} 个，失败 ${failCount} 个`, 'warning');
+            }
+        }
 
         function formatDate(dateStr) {
             try {
@@ -411,6 +605,9 @@
             uploadList.classList.remove('hidden');
             
             Array.from(files).forEach(file => {
+                const estimatedTime = estimateUploadTime(file.size);
+                const fileSizeStr = formatFileSize(file.size);
+                
                 const uploadItem = document.createElement('div');
                 uploadItem.className = 'glass flex items-center p-4 rounded-lg';
                 uploadItem.innerHTML = `
@@ -419,6 +616,7 @@
                     </div>
                     <div class="flex-1">
                         <div class="font-medium text-sm">${escapeHTML(file.name)}</div>
+                        <div class="text-xs text-white/60 mt-1">${fileSizeStr} · ${estimatedTime}</div>
                         <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-2">
                             <div class="progress-bar h-full gradient-bg w-0 transition-all duration-300"></div>
                         </div>
@@ -450,36 +648,16 @@
             try {
                 const isLargeFile = file.size >= 1024 * 1024; // >= 1MB 视为大文件
                 
-                // 小文件：前端 base64 编码
-                // 大文件：直接传二进制
-                let formData;
-                if (isLargeFile) {
-                    formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('filename', file.name);
-                    formData.append('isLargeFile', 'true');
-                } else {
-                    progressText.textContent = '编码中...';
-                    const arrayBuffer = await file.arrayBuffer();
-                    const uint8Array = new Uint8Array(arrayBuffer);
-                    let binary = '';
-                    for (let i = 0; i < uint8Array.length; i++) {
-                        binary += String.fromCharCode(uint8Array[i]);
-                    }
-                    const content = btoa(binary);
-                    
-                    formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('filename', file.name);
-                    formData.append('content', content);
-                }
-                
+                // 所有文件都直接传二进制到Releases
                 progressText.textContent = '上传中...';
                 
-                // 带超时 fetch
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('filename', file.name);
+                
+                // 带超时 fetch，所有文件都用5分钟超时
                 const controller = new AbortController();
-                const timeout = isLargeFile ? 300000 : 30000; // 大文件5分钟超时，小文件30秒
-                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分钟超时
                 
                 const response = await fetch('/api/upload', {
                     method: 'POST',

@@ -338,19 +338,22 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
       const assets = await assetsResp.json();
       
       for (const asset of assets) {
+        // 过滤无日期文件
+        if (!asset.updated_at && !asset.created_at) continue;
+        
         const ext = asset.name.split('.').pop()?.toLowerCase() || '';
         const category = getCategory(ext);
         const folder = getFolder(ext);
         
         files.push({
           name: asset.name,
-          path: `release/${asset.id}`, // 特殊路径标识
+          path: `release/${asset.id}`,
           folder,
           size: asset.size,
           type: category.name,
           icon: category.icon,
-          last_modified: asset.updated_at,
-          isLargeFile: true,
+          last_modified: asset.updated_at || asset.created_at,
+          isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB显示大文件标签
           downloadUrl: asset.browser_download_url
         });
       }
@@ -409,132 +412,82 @@ async function handleUpload(request: Request, token: string, owner: string, repo
   }
 
   try {
+    console.log('Upload request received');
     const formData = await request.formData();
+    console.log('FormData parsed');
     
     const file = formData.get('file') as File;
     const filename = formData.get('filename')?.toString() || file?.name || 'unknown';
-    const content = formData.get('content')?.toString();
-    const isLargeFile = formData.get('isLargeFile') === 'true';
 
     if (!file) {
       return jsonResponse({ ok: false, message: '请选择文件' }, 400);
     }
 
+    console.log(`Uploading: ${filename}, size: ${file.size}`);
+    
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const folder = getFolder(ext);
 
-    // 小文件（<1MB）使用 Contents API
-    if (!isLargeFile && file.size < 1024 * 1024) {
-      return handleUploadSmallFile(token, owner, repo, filename, folder, content);
+    // 获取或创建 release
+    const release = await getOrCreateRelease(token, owner, repo);
+    
+    // 检查是否已存在同名 asset
+    const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
+      headers: getGitHubHeaders(token)
+    });
+    
+    let existingAssetId: number | undefined;
+    if (assetsResp.ok) {
+      const assets = await assetsResp.json();
+      const existing = assets.find((a: any) => a.name === filename);
+      if (existing) existingAssetId = existing.id;
     }
 
-    // 大文件使用 Releases API
-    return handleUploadLargeFile(token, owner, repo, filename, folder, content, file);
+    // 如果已存在，先删除
+    if (existingAssetId) {
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${existingAssetId}`, {
+        method: 'DELETE',
+        headers: getGitHubHeaders(token)
+      });
+    }
+
+    // 上传新 asset
+    const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(filename)}`;
+    
+    // 直接从 file 读取二进制
+    const binaryContent = await file.arrayBuffer();
+
+    console.log('Sending to GitHub releases...');
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        ...getUploadHeaders(token),
+        'Content-Type': 'application/octet-stream'
+      },
+      body: binaryContent
+    });
+    console.log(`GitHub response: ${response.status}`);
+
+    if (!response.ok) {
+      const data = await response.json();
+      return jsonResponse({ ok: false, message: data.message || '上传失败' }, response.status);
+    }
+
+    const asset = await response.json();
+    
+    return jsonResponse({ 
+      ok: true, 
+      message: '上传成功', 
+      filename, 
+      folder,
+      isLargeFile: true,
+      downloadUrl: asset.browser_download_url
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Upload error:', message);
     return jsonResponse({ ok: false, message }, 500);
   }
-}
-
-async function handleUploadSmallFile(token: string, owner: string, repo: string, filename: string, folder: string, content?: string): Promise<Response> {
-  if (!content) {
-    return jsonResponse({ ok: false, message: '缺少文件内容' }, 400);
-  }
-
-  const path = `${folder}/${filename}`;
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-  
-  // 检查文件是否已存在
-  let sha: string | undefined;
-  const checkResp = await fetch(url, { headers: getGitHubHeaders(token) });
-  if (checkResp.ok) {
-    const existingFile = await checkResp.json();
-    sha = existingFile.sha;
-  }
-
-  const uploadBody: any = { message: `Upload: ${filename}`, content, branch: 'main' };
-  if (sha) uploadBody.sha = sha;
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: { ...getGitHubHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify(uploadBody)
-  });
-
-  if (!response.ok) {
-    const data = await response.json();
-    return jsonResponse({ ok: false, message: data.message || '上传失败' }, response.status);
-  }
-
-  return jsonResponse({ ok: true, message: '上传成功', filename, folder });
-}
-
-async function handleUploadLargeFile(token: string, owner: string, repo: string, filename: string, folder: string, content: string | undefined, file: File): Promise<Response> {
-  // 获取或创建 release
-  const release = await getOrCreateRelease(token, owner, repo);
-  
-  // 检查是否已存在同名 asset
-  const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
-    headers: getGitHubHeaders(token)
-  });
-  
-  let existingAssetId: number | undefined;
-  if (assetsResp.ok) {
-    const assets = await assetsResp.json();
-    const existing = assets.find((a: any) => a.name === filename);
-    if (existing) existingAssetId = existing.id;
-  }
-
-  // 如果已存在，先删除
-  if (existingAssetId) {
-    await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${existingAssetId}`, {
-      method: 'DELETE',
-      headers: getGitHubHeaders(token)
-    });
-  }
-
-  // 上传新 asset
-  const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(filename)}`;
-  
-  // 如果没有传入 content，从 file 读取
-  let binaryContent: ArrayBuffer;
-  if (content) {
-    // content 是 base64，需要解码
-    const binary = atob(content);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    binaryContent = bytes.buffer;
-  } else {
-    binaryContent = await file.arrayBuffer();
-  }
-
-  const response = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      ...getUploadHeaders(token),
-      'Content-Type': 'application/octet-stream'
-    },
-    body: binaryContent
-  });
-
-  if (!response.ok) {
-    const data = await response.json();
-    return jsonResponse({ ok: false, message: data.message || '大文件上传失败' }, response.status);
-  }
-
-  const asset = await response.json();
-  
-  return jsonResponse({ 
-    ok: true, 
-    message: '上传成功', 
-    filename, 
-    folder,
-    isLargeFile: true,
-    downloadUrl: asset.browser_download_url
-  });
 }
 
 async function handleDelete(filename: string, folder: string, token: string, owner: string, repo: string): Promise<Response> {
