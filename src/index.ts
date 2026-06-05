@@ -430,9 +430,9 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     console.log(`Original filename: ${originalFilename}`);
     console.log(`File size: ${file.size}`);
     
-    // 清理文件名，但最大限度保留中文字符
-    let filename = sanitizeFilename(originalFilename);
-    console.log(`Sanitized filename: ${filename}`);
+    // 只做最基本的文件名清理
+    let filename = sanitizeFilenameLight(originalFilename);
+    console.log(`Clean filename: ${filename}`);
     
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const folder = getFolder(ext);
@@ -441,7 +441,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const release = await getOrCreateRelease(token, owner, repo);
     console.log(`Using release: ${release.tag} (ID: ${release.id})`);
     
-    // 首先记录当前所有 assets 用于调试
+    // 记录当前所有 assets
     const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
       headers: getGitHubHeaders(token)
     });
@@ -452,49 +452,25 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       assets.forEach(a => console.log(`  - [${a.id}] ${a.name}`));
     }
 
-    // 尝试上传 - tryUploadFile 内部会处理删除和重试逻辑
-    let uploadResult: any = null;
-    let finalFilename = filename;
+    // 尝试上传
+    console.log('=== Uploading file ===');
+    const uploadResult = await tryUploadFile(file, filename, release.id, token, owner, repo);
     
-    // 第一次尝试 - 使用原始文件名
-    console.log('=== Attempt 1: Original filename ===');
-    uploadResult = await tryUploadFile(file, filename, release.id, token, owner, repo);
-    
-    // 如果失败，尝试使用原始文件名（可能我们之前的 sanitize 有问题）
-    if (!uploadResult.success && originalFilename !== filename) {
-      console.log('=== Attempt 2: Original filename without sanitization ===');
-      const rawFilename = sanitizeFilenameLight(originalFilename);
-      uploadResult = await tryUploadFile(file, rawFilename, release.id, token, owner, repo);
-      if (uploadResult.success) {
-        finalFilename = rawFilename;
-      }
-    }
-    
-    // 如果还是失败，尝试简化文件名
-    if (!uploadResult.success) {
-      console.log('=== Attempt 3: Simplified filename ===');
-      const simpleFilename = simplifyFilenameSafe(originalFilename);
-      uploadResult = await tryUploadFile(file, simpleFilename, release.id, token, owner, repo);
-      if (uploadResult.success) {
-        finalFilename = simpleFilename;
-      }
-    }
-
     if (uploadResult.success) {
       console.log('Upload successful!');
-      console.log('Final filename:', finalFilename);
+      console.log('Final filename:', uploadResult.asset.name);
       console.log('Asset:', uploadResult.asset);
       
       return jsonResponse({ 
         ok: true, 
-        message: finalFilename !== filename ? '上传成功（文件名已调整）' : '上传成功', 
-        filename: finalFilename, 
+        message: '上传成功', 
+        filename: uploadResult.asset.name, 
         folder,
         isLargeFile: true,
         downloadUrl: uploadResult.asset.browser_download_url
       });
     } else {
-      console.error('All upload attempts failed');
+      console.error('Upload failed');
       return jsonResponse({ ok: false, message: uploadResult.error || '上传失败，请重试' }, 500);
     }
 
@@ -537,21 +513,8 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       
       console.log(`Delete response: ${deleteResp.status}`);
       
-      // 等待更长时间确保 GitHub 处理删除
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // 再次验证删除
-      const verifyResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
-        headers: getGitHubHeaders(token)
-      });
-      if (verifyResp.ok) {
-        const verifyAssets = await verifyResp.json();
-        const stillExists = verifyAssets.find((a: any) => a.id === existingAsset.id);
-        if (stillExists) {
-          console.warn('File still exists after deletion! Will try again...');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
+      // 等待确保 GitHub 处理删除
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     // 构建上传 URL - GitHub 推荐的方式
@@ -560,7 +523,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     
     console.log('Upload URL:', uploadUrl);
 
-    // 第一次上传尝试
+    // 上传尝试
     let response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
@@ -573,16 +536,24 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
 
     console.log('Upload response status:', response.status);
 
-    // 如果还是 422 already_exists，尝试使用稍微不同的文件名
+    // 如果 422 already_exists，使用带真实时间戳的文件名
     if (!response.ok && response.status === 422) {
       const errorText = await response.text();
       console.error('Got 422, checking error:', errorText);
       
       if (errorText.includes('already_exists')) {
-        console.log('File still exists according to GitHub, trying with timestamp suffix...');
+        console.log('File still exists according to GitHub, trying with real timestamp suffix...');
         
-        // 尝试使用带时间戳的文件名
-        const timestamp = Date.now();
+        // 使用真实时间戳，精确到秒
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const timestamp = `${year}${month}${day}-${hours}${minutes}${seconds}`;
+        
         const extIndex = filename.lastIndexOf('.');
         let newFilename = '';
         if (extIndex > 0) {
@@ -618,6 +589,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
 
     if (response.ok) {
       const asset = await response.json();
+      console.log('Upload successful, asset name:', asset.name);
       return { success: true, asset };
     } else {
       const errorText = await response.text();
