@@ -219,65 +219,86 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
 async function fetchGitHubFiles(token: string, owner: string, repo: string): Promise<any[]> {
   const files: any[] = [];
 
+  console.log('=== Starting to fetch files ===');
+  console.log('Owner:', owner);
+  console.log('Repo:', repo);
+
   // 先从 Releases API 读取所有文件
   try {
-    console.log('Loading release files...');
-    // 获取 release
-    let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+    console.log('Step 1: Loading release files...');
+    
+    // 获取所有 releases
+    const allReleasesResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
       headers: getGitHubHeaders(token)
     });
     
-    if (!releaseResp.ok) {
-      console.log('Release "files" not found, trying latest...');
-      releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
-        headers: getGitHubHeaders(token)
-      });
-    }
-    
-    if (!releaseResp.ok) {
-      console.log('No releases found');
+    if (!allReleasesResp.ok) {
+      console.log('Failed to fetch releases:', allReleasesResp.status, allReleasesResp.statusText);
     } else {
-      const release = await releaseResp.json();
-      console.log('Found release:', release.tag_name);
+      const allReleases = await allReleasesResp.json();
+      console.log('Found', allReleases.length, 'releases');
       
-      // 获取 assets
-      const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
-        headers: getGitHubHeaders(token)
-      });
+      let targetRelease = null;
       
-      if (assetsResp.ok) {
-        const assets = await assetsResp.json();
-        console.log('Found assets:', assets.length);
+      // 先找 tag 为 "files" 的 release
+      targetRelease = allReleases.find((r: any) => r.tag_name === 'files');
+      
+      // 如果没有，找最新的
+      if (!targetRelease && allReleases.length > 0) {
+        targetRelease = allReleases[0];
+      }
+      
+      if (targetRelease) {
+        console.log('Using release:', targetRelease.tag_name, '(ID:', targetRelease.id, ')');
         
-        for (const asset of assets) {
-          // 过滤无日期文件
-          if (!asset.updated_at && !asset.created_at) continue;
+        // 获取 assets
+        const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${targetRelease.id}/assets`, {
+          headers: getGitHubHeaders(token)
+        });
+        
+        if (assetsResp.ok) {
+          const assets = await assetsResp.json();
+          console.log('Found assets:', assets.length);
           
-          const ext = asset.name.split('.').pop()?.toLowerCase() || '';
-          const category = getCategory(ext);
-          const folder = getFolder(ext);
-          
-          files.push({
-            name: asset.name,
-            path: `release/${asset.id}`,
-            folder,
-            size: asset.size,
-            type: category.name,
-            icon: category.icon,
-            last_modified: asset.updated_at || asset.created_at,
-            isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB显示大文件标签
-            downloadUrl: asset.browser_download_url
-          });
+          for (const asset of assets) {
+            console.log('  -', asset.name, '(size:', asset.size, ')');
+            
+            // 过滤无日期文件
+            if (!asset.updated_at && !asset.created_at) {
+              console.log('    Skipping (no date)');
+              continue;
+            }
+            
+            const ext = asset.name.split('.').pop()?.toLowerCase() || '';
+            const category = getCategory(ext);
+            const folder = getFolder(ext);
+            
+            files.push({
+              name: asset.name,
+              path: `release/${asset.id}`,
+              folder,
+              size: asset.size,
+              type: category.name,
+              icon: category.icon,
+              last_modified: asset.updated_at || asset.created_at,
+              isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB显示大文件标签
+              downloadUrl: asset.browser_download_url
+            });
+          }
+        } else {
+          console.log('Failed to fetch assets:', assetsResp.status);
         }
+      } else {
+        console.log('No releases found');
       }
     }
   } catch (e) {
     console.error('Failed to load release files:', e);
   }
 
+  console.log('Step 2: Loading contents files...');
   // 再尝试从 contents/files 目录加载旧文件（兼容）
   try {
-    console.log('Trying to load contents files...');
     const visitedPaths: string[] = [];
 
     async function traverse(path: string): Promise<void> {
@@ -342,6 +363,8 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
   } catch (e) {
     console.error('Error loading contents files:', e);
   }
+
+  console.log('=== Total files loaded:', files.length, '===');
 
   // 按修改时间倒序排列
   return files.sort((a, b) => {
