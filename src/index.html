@@ -128,79 +128,101 @@
                 </div>
             </div>
             
-            <div class="max-w-4xl mx-auto scroll-reveal">
-                <div class="glass rounded-2xl overflow-hidden">
-                    <div class="p-6">
-                        <!-- 分类过滤器 -->
-                        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
-                            <button class="category-btn active px-4 py-2 rounded-lg text-sm transition-colors" data-category="all">
-                                全部
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PDF文档">
-                                📄 PDF
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Word文档">
-                                📝 Word
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Excel表格">
-                                📊 Excel
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PPT演示">
-                                📽️ PPT
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="图片">
-                                🖼️ 图片
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="视频">
-                                🎬 视频
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="音频">
-                                🎵 音频
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="压缩包">
-                                📦 压缩包
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="代码">
-                                💻 代码
-                            </button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="其他文件">
-                                📁 其他
-                            </button>
-                        </div>
+            <div class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto scroll-reveal">
+                <!-- 主文件列表 -->
+                <div class="flex-1">
+                    <div class="glass rounded-2xl overflow-hidden">
+                        <div class="p-6">
+                            <!-- 分类过滤器 -->
+                            <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+                                <button class="category-btn active px-4 py-2 rounded-lg text-sm transition-colors" data-category="all">
+                                    全部
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PDF文档">
+                                    📄 PDF
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Word文档">
+                                    📝 Word
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Excel表格">
+                                    📊 Excel
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PPT演示">
+                                    📽️ PPT
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="图片">
+                                    🖼️ 图片
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="视频">
+                                    🎬 视频
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="音频">
+                                    🎵 音频
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="压缩包">
+                                    📦 压缩包
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="代码">
+                                    💻 代码
+                                </button>
+                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="其他文件">
+                                    📁 其他
+                                </button>
+                            </div>
 
-                        <!-- 搜索框 + 批量操作栏 -->
-        <div class="mt-4 glass rounded-xl p-4">
-          <div class="flex flex-col md:flex-row gap-4 items-center">
-            <!-- 搜索框 -->
-            <div class="relative flex-1 w-full">
-              <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
-              <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
-            </div>
-            
-            <!-- 批量操作栏 -->
-            <div class="flex items-center gap-3" id="bulkActions">
-              <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
-              <button id="bulkDownloadBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                <i class="fa fa-download mr-2"></i>下载
-              </button>
-              <button id="bulkDeleteBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                <i class="fa fa-trash mr-2"></i>删除
-              </button>
-              <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                取消全选
-              </button>
-            </div>
-          </div>
-        </div>
-                        
-                        <div class="space-y-2 mt-4" id="fileList">
-                            <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
-                                <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
-                                    <i class="fa fa-file-pdf-o text-red-400"></i>
+                            <!-- 搜索框 + 批量操作栏 -->
+                            <div class="mt-4 glass rounded-xl p-4">
+                                <div class="flex flex-col md:flex-row gap-4 items-center">
+                                    <!-- 搜索框 -->
+                                    <div class="relative flex-1 w-full">
+                                        <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
+                                        <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
+                                    </div>
+                                    
+                                    <!-- 批量操作栏 -->
+                                    <div class="flex items-center gap-3" id="bulkActions">
+                                        <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
+                                        <button id="bulkDownloadBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                            <i class="fa fa-download mr-2"></i>下载
+                                        </button>
+                                        <button id="bulkDeleteBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                            <i class="fa fa-trash mr-2"></i>删除
+                                        </button>
+                                        <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                            取消全选
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="flex-1">
-                                    <div class="text-sm">加载中...</div>
+                            </div>
+                            
+                            <div class="space-y-2 mt-4" id="fileList">
+                                <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
+                                    <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
+                                        <i class="fa fa-file-pdf-o text-red-400"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="text-sm">加载中...</div>
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧诊断面板 -->
+                <div class="lg:w-96" id="diagnosticPanel" style="display: none;">
+                    <div class="glass rounded-2xl overflow-hidden sticky top-24">
+                        <div class="p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-bold flex items-center">
+                                    <i class="fa fa-exclamation-triangle text-yellow-400 mr-2"></i>
+                                    上传诊断
+                                </h3>
+                                <button onclick="hideDiagnosticPanel()" class="text-white/60 hover:text-white transition-colors">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                            <div id="diagnosticContent" class="space-y-4 text-sm">
                             </div>
                         </div>
                     </div>
@@ -242,6 +264,15 @@
         const fileInput = document.getElementById('file-input');
         const uploadList = document.getElementById('upload-list');
         const fileList = document.getElementById('fileList');
+        
+        // 全局变量
+        let currentCategory = 'all';
+        let allFilesData = [];
+        let searchQuery = '';
+        let selectedFiles = new Set();
+        let currentDisplayedFiles = []; // 跟踪当前页显示的文件
+        let recentlyUploadedFiles = []; // 跟踪最近上传的文件名
+        let diagnosticLogs = []; // 诊断日志
 
         uploadArea.addEventListener('click', () => fileInput.click());
 
@@ -339,6 +370,12 @@
                 
                 if (data.ok && data.files && data.files.length > 0) {
                     console.log('=== Frontend: Displaying', data.files.length, 'files ===');
+                    
+                    // 检测最近上传的文件是否有问题
+                    if (recentlyUploadedFiles.length > 0) {
+                        checkRecentlyUploadedFiles(data.files);
+                    }
+                    
                     displayFiles(data.files);
                 } else {
                     let errorMsg = '暂无文件';
@@ -354,12 +391,112 @@
                 fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">加载失败，请检查网络连接或后端服务</div></div>';
             }
         }
-
-        let currentCategory = 'all';
-        let allFilesData = [];
-        let searchQuery = '';
-        let selectedFiles = new Set();
-        let currentDisplayedFiles = []; // 跟踪当前页显示的文件
+        
+        // 检测文件名问题的函数
+        function checkRecentlyUploadedFiles(files) {
+            const problemsFound = [];
+            
+            for (const expectedFilename of recentlyUploadedFiles) {
+                // 查找匹配的文件（精确匹配或部分匹配）
+                const foundFile = files.find(f => f.name === expectedFilename);
+                const similarFile = files.find(f => {
+                    // 检查文件名是否有相似性（如扩展名相同）
+                    const ext1 = expectedFilename.split('.').pop();
+                    const ext2 = f.name.split('.').pop();
+                    return ext1 === ext2 && f.name !== expectedFilename;
+                });
+                
+                if (!foundFile && similarFile) {
+                    // 发现问题！文件名被修改了
+                    problemsFound.push({
+                        expected: expectedFilename,
+                        actual: similarFile.name,
+                        file: similarFile
+                    });
+                } else if (foundFile) {
+                    // 检查文件名是否有中文字符丢失
+                    const hasChineseInExpected = /[\u4e00-\u9fa5]/.test(expectedFilename);
+                    const hasChineseInActual = /[\u4e00-\u9fa5]/.test(foundFile.name);
+                    
+                    if (hasChineseInExpected && !hasChineseInActual) {
+                        problemsFound.push({
+                            expected: expectedFilename,
+                            actual: foundFile.name,
+                            file: foundFile,
+                            chineseLost: true
+                        });
+                    }
+                }
+            }
+            
+            if (problemsFound.length > 0) {
+                showDiagnosticPanel(problemsFound);
+            }
+            
+            // 清空已检测的列表
+            recentlyUploadedFiles = [];
+        }
+        
+        // 显示诊断面板
+        function showDiagnosticPanel(problems) {
+            const panel = document.getElementById('diagnosticPanel');
+            const content = document.getElementById('diagnosticContent');
+            
+            let html = '';
+            
+            problems.forEach((problem, index) => {
+                html += `
+                    <div class="bg-red-500/20 rounded-lg p-4">
+                        <div class="font-medium text-red-300 mb-2">
+                            <i class="fa fa-warning mr-2"></i>
+                            问题 #${index + 1}
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <span class="text-white/60">期望文件名：</span>
+                                <div class="font-mono text-xs mt-1 bg-white/5 p-2 rounded break-all">
+                                    ${escapeHTML(problem.expected)}
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-white/60">实际文件名：</span>
+                                <div class="font-mono text-xs mt-1 bg-white/5 p-2 rounded break-all text-red-300">
+                                    ${escapeHTML(problem.actual)}
+                                </div>
+                            </div>
+                            ${problem.chineseLost ? `
+                            <div class="text-yellow-300 text-xs mt-2">
+                                <i class="fa fa-info-circle mr-1"></i>
+                                检测到中文字符丢失
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                <div class="bg-white/5 rounded-lg p-4">
+                    <div class="font-medium mb-2">
+                        <i class="fa fa-info-circle text-blue-400 mr-2"></i>
+                        诊断建议
+                    </div>
+                    <ul class="text-white/70 text-xs space-y-1">
+                        <li>• 请检查 Cloudflare Workers 日志获取详细信息</li>
+                        <li>• GitHub Releases API 对非 ASCII 文件名有特殊处理</li>
+                        <li>• 尝试使用纯英文文件名上传测试</li>
+                    </ul>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+            panel.style.display = 'block';
+        }
+        
+        // 隐藏诊断面板
+        function hideDiagnosticPanel() {
+            document.getElementById('diagnosticPanel').style.display = 'none';
+        }
 
         function displayFiles(files) {
             console.log('=== Frontend: displayFiles called with ===', files);
@@ -736,12 +873,15 @@
                 if (data.ok) {
                     progressText.textContent = '完成';
                     showToast(`上传成功: ${file.name}`, 'success');
-                    loadFiles();
-                    // 成功后延迟移除
+                    // 跟踪刚上传的文件名，用于检测
+                    recentlyUploadedFiles.push(file.name);
+                    // 先移除上传项，然后加载文件
                     setTimeout(() => {
                         const uploadItem = progressBar.closest('.glass');
                         if (uploadItem) uploadItem.remove();
-                    }, 2000);
+                        // 延迟加载文件，确保GitHub API已更新
+                        setTimeout(() => loadFiles(), 2000);
+                    }, 1000);
                 } else {
                     progressText.textContent = '失败';
                     progressBar.classList.remove('gradient-bg');
