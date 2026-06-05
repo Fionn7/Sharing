@@ -535,14 +535,19 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodedFilename}`;
     
     console.log('Upload URL:', uploadUrl);
+    console.log('Filename for header:', filename);
 
-    // 上传尝试
+    // 构建 RFC 5987 格式的文件名参数
+    const rfc5987Filename = encodeURIComponent(filename).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
+    
+    // 上传尝试 - 同时在 URL 和 Content-Disposition 头里指定文件名
     let response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         ...getUploadHeaders(token),
         'Content-Type': 'application/octet-stream',
-        'Content-Length': file.size.toString()
+        'Content-Length': file.size.toString(),
+        'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
       },
       body: binaryContent
     });
@@ -578,6 +583,10 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
         }
         
         console.log(`Trying with new filename: ${newFilename}`);
+        console.log('New filename for header:', newFilename);
+        
+        // 构建 RFC 5987 格式的文件名参数
+        const newRfc5987Filename = encodeURIComponent(newFilename).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
         
         const newEncodedFilename = encodeURIComponent(newFilename);
         const newUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${newEncodedFilename}`;
@@ -587,7 +596,8 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
           headers: {
             ...getUploadHeaders(token),
             'Content-Type': 'application/octet-stream',
-            'Content-Length': file.size.toString()
+            'Content-Length': file.size.toString(),
+            'Content-Disposition': `attachment; filename="${newFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${newRfc5987Filename}`
           },
           body: binaryContent
         });
