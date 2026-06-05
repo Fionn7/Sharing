@@ -59,10 +59,12 @@ export default {
     if (pathname === '/api/debug') {
       // 测试 GitHub API 连接
       let githubStatus = 'unknown';
-      let fileCount = 0;
       let rawResponse: any = null;
+      let traverseLog: string[] = [];
+      
       if (githubToken) {
         try {
+          // 测试直接获取 files 目录
           const testUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files`;
           const testResp = await fetch(testUrl, {
             headers: {
@@ -71,25 +73,51 @@ export default {
             }
           });
           githubStatus = `${testResp.status} ${testResp.statusText}`;
+          
           if (testResp.ok) {
             const data = await testResp.json();
             rawResponse = data;
+            
+            // 手动遍历一层看看
             if (Array.isArray(data)) {
-              fileCount = data.length;
+              traverseLog.push(`files/ 目录包含 ${data.length} 个项目`);
+              for (const item of data) {
+                traverseLog.push(`  - ${item.name} (${item.type})`);
+                if (item.type === 'dir') {
+                  // 获取子目录内容
+                  const subUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/${item.path}`;
+                  const subResp = await fetch(subUrl, {
+                    headers: {
+                      'Authorization': `Bearer ${githubToken}`,
+                      'Accept': 'application/vnd.github+json'
+                    }
+                  });
+                  if (subResp.ok) {
+                    const subData = await subResp.json();
+                    if (Array.isArray(subData)) {
+                      traverseLog.push(`    ${item.path}/ 包含 ${subData.length} 个项目`);
+                      for (const subItem of subData) {
+                        traverseLog.push(`      - ${subItem.name} (${subItem.type})`);
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         } catch (e) {
           githubStatus = `error: ${e instanceof Error ? e.message : 'unknown'}`;
         }
       }
+      
       return jsonResponse({
         ok: true,
         tokenConfigured: !!githubToken,
         owner: githubOwner,
         repo: githubRepo,
         githubStatus,
-        filesInRoot: fileCount,
-        rawResponse
+        rawResponse,
+        traverseLog
       });
     }
 
