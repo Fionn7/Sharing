@@ -36,6 +36,12 @@ export default {
       return handleUpload(request, githubToken, githubOwner, githubRepo);
     }
 
+    if (pathname.startsWith('/api/files/') && method === 'DELETE') {
+      const filename = decodeURIComponent(pathname.replace('/api/files/', ''));
+      const category = url.searchParams.get('category') || 'files/others';
+      return handleDelete(filename, category, githubToken, githubOwner, githubRepo);
+    }
+
     if (pathname.startsWith('/download/')) {
       const path = pathname.replace('/download/', '');
       return handleDownload(path, githubToken, githubOwner, githubRepo);
@@ -85,199 +91,163 @@ function getHtmlContent(): string {
             }
         }
     </script>
-    <style type="text/tailwindcss">
-        @layer utilities {
-            .content-auto {
-                content-visibility: auto;
-            }
-            .glass {
-                background: rgba(255, 255, 255, 0.15);
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }
-            .glass-light {
-                background: rgba(255, 255, 255, 0.25);
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-            }
-            .gradient-text {
-            background: linear-gradient(90deg, #f8fafc);
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0f172a;
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-backdrop {
+            background-color: #0f172a;
+            background-image: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        }
+
+        .glass {
+            background-color: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glass-light {
+            background-color: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #ffffff 0%, #93c5fd 50%, #a78bfa 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            }
-            .gradient-bg {
-                background: linear-gradient(135deg, #00643e27);
-            }
-            .scroll-reveal {
-                opacity: 0;
-                transform: translateY(20px);
-                transition: all 0.6s ease-out;
-            }
-            .scroll-reveal.active {
-            opacity: 1;
-            transform: translateY(0);
-            }
         }
+
         .category-btn {
             background: rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
+
         .category-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
+            background: rgba(255, 255, 255, 0.18);
+            color: #ffffff;
         }
+
         .category-btn.active {
-            background: rgba(14, 165, 233, 0.3);
-            color: white;
-            border-color: rgba(14, 165, 233, 0.5);
+            background: rgba(14, 165, 233, 0.25);
+            color: #ffffff;
+            border-color: rgba(14, 165, 233, 0.6);
+        }
+
+        .hidden-el {
+            display: none;
         }
     </style>
 </head>
-<body class="font-inter text-white overflow-x-hidden">
+<body class="bg-backdrop">
     <div class="fixed inset-0 -z-10">
-        <img src="https://www.nnu.edu.cn/__local/8/34/A4/3A386A880E332A4E876F05144E0_A2A61260_73305.jpg" alt="南京师范大学四季风景" class="w-full h-full object-cover">
-        <div class="absolute inset-0 bg-slate-900/50"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
     </div>
 
-    <nav id="navbar" class="fixed w-full z-50 transition-all duration-300 py-4">
-        <div class="container mx-auto px-6">
+    <nav id="navbar" class="fixed top-0 left-0 right-0 z-50 py-4 px-6">
+        <div class="max-w-5xl mx-auto">
             <div class="glass rounded-full px-6 py-3 flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                    <span class="text-2xl font-bold gradient-text">Sharing</span>
-                </div>
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="#files" class="text-white/80 hover:text-white transition-colors text-sm">文件库</a>
+                <span class="text-2xl font-bold gradient-text">Sharing</span>
+                <div class="flex items-center space-x-8">
                     <a href="#upload" class="text-white/80 hover:text-white transition-colors text-sm">上传</a>
+                    <a href="#files" class="text-white/80 hover:text-white transition-colors text-sm">文件库</a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <section id="upload" class="min-h-screen flex items-center pt-24">
-        <div class="container mx-auto px-6">
-            <div class="max-w-3xl mx-auto text-center">
-                <div class="glass rounded-3xl p-10 md:p-16 scroll-reveal">
-                    <div class="w-20 h-20 mx-auto mb-8 bg-white/10 rounded-full flex items-center justify-center">
-                        <i class="fa fa-cloud-upload text-3xl text-white/70"></i>
-                    </div>
-                    <h1 class="text-[clamp(2rem,4vw,3rem)] font-bold mb-4">拖拽文件到这里上传</h1>
-                    <p class="text-white/70 text-lg mb-6">文件将自动分类存储到共享库</p>
-                    <div id="upload-area" class="glass-light rounded-2xl p-12 hover:bg-white/30 transition-colors cursor-pointer group">
-                        <div class="w-16 h-16 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                            <i class="fa fa-cloud-upload text-3xl text-white/70 group-hover:text-primary transition-colors"></i>
-                        </div>
-                        <p class="text-white/80">释放文件以上传</p>
-                    </div>
-                    <input type="file" id="file-input" class="hidden" multiple>
-                    <div id="upload-list" class="mt-8 space-y-3 hidden"></div>
+    <section id="upload" class="pt-28 pb-12">
+        <div class="max-w-3xl mx-auto px-6 text-center">
+            <div class="glass rounded-3xl p-8 md:p-12">
+                <div class="w-20 h-20 mx-auto mb-6 bg-white/10 rounded-full flex items-center justify-center">
+                    <i class="fa fa-cloud-upload text-3xl text-sky-400"></i>
                 </div>
+                <h1 class="text-3xl md:text-4xl font-bold mb-3 text-white">拖拽文件到这里上传</h1>
+                <p class="text-white/70 text-lg mb-6">文件将自动分类存储到共享库</p>
+                <div id="upload-area" class="glass-light rounded-2xl p-8 md:p-10 hover:bg-white/20 transition-colors cursor-pointer border-2 border-dashed border-white/30">
+                    <div class="w-14 h-14 mx-auto mb-3 bg-white/10 rounded-full flex items-center justify-center">
+                        <i class="fa fa-cloud-upload text-2xl text-sky-300"></i>
+                    </div>
+                    <p class="text-white/90">点击或拖拽文件到此处</p>
+                </div>
+                <input type="file" id="file-input" class="hidden-el" multiple>
+                <div id="upload-list" class="mt-6 space-y-2 hidden-el"></div>
             </div>
         </div>
     </section>
 
-    <section id="files" class="py-20">
-        <div class="container mx-auto px-6">
-            <div class="text-center mb-12 scroll-reveal">
-                <div class="glass inline-block rounded-full px-6 py-2 text-sm">
-                    <h2 class="text-xl font-bold">文件库</h2>
-                </div>
+    <section id="files" class="py-8 pb-20">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-white">文件库</h2>
             </div>
-            <div class="max-w-4xl mx-auto scroll-reveal">
-                <div class="glass rounded-2xl overflow-hidden">
-                    <div class="p-6">
-                        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
-                            <button class="category-btn active px-4 py-2 rounded-lg text-sm transition-colors" data-category="all">全部</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PDF文档">📄 PDF</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Word文档">📝 Word</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Excel表格">📊 Excel</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PPT演示">📽️ PPT</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="图片">🖼️ 图片</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="视频">🎬 视频</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="音频">🎵 音频</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="压缩包">📦 压缩包</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="代码">💻 代码</button>
-                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="其他文件">📁 其他</button>
-                        </div>
-                        <div class="space-y-2" id="fileList">
-                            <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
-                                <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
-                                    <i class="fa fa-file-pdf-o text-red-400"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <div class="text-sm">加载中...</div>
-                                </div>
-                            </div>
-                        </div>
+            <div class="glass rounded-2xl overflow-hidden">
+                <div class="p-5">
+                    <div class="flex flex-wrap gap-2 mb-5" id="categoryFilters">
+                        <button class="category-btn active px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="all">全部</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="PDF文档">📄 PDF</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="Word文档">📝 Word</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="Excel表格">📊 Excel</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="PPT演示">📽️ PPT</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="图片">🖼️ 图片</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="视频">🎬 视频</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="音频">🎵 音频</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="压缩包">📦 压缩包</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="代码">💻 代码</button>
+                        <button class="category-btn px-3 py-1.5 rounded-lg text-sm transition-colors" data-category="其他文件">📁 其他</button>
+                    </div>
+                    <div class="space-y-2" id="fileList">
+                        <div class="text-center py-6 text-white/50 text-sm">加载中...</div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <footer class="py-12">
-        <div class="container mx-auto px-6">
-            <div class="glass rounded-2xl p-8">
-                <div class="flex flex-col md:flex-row justify-between items-center">
-                    <div class="flex items-center space-x-2 mb-4 md:mb-0">
-                        <span class="text-2xl font-bold gradient-text">Sharing</span>
-                    </div>
-                    <div class="text-white/70 text-sm text-center md:text-right">
-                        <p>© 2026 Sharing. 仅供内部使用</p>
-                    </div>
-                </div>
+    <footer class="py-8">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="glass rounded-2xl p-6 text-center">
+                <span class="text-lg font-bold gradient-text">Sharing</span>
+                <p class="text-white/60 text-sm mt-2">© 2026 Sharing. 仅供内部使用</p>
             </div>
         </div>
     </footer>
 
+    <div id="toast-container" class="fixed top-20 right-6 z-50 space-y-2"></div>
+
     <script>
-        window.addEventListener('scroll', function() {
-            const navbar = document.getElementById('navbar');
-            if (window.scrollY > 50) {
-                navbar.classList.add('py-2');
-                navbar.classList.remove('py-4');
-            } else {
-                navbar.classList.add('py-4');
-                navbar.classList.remove('py-2');
-            }
-        });
-
-        const scrollRevealElements = document.querySelectorAll('.scroll-reveal');
-        const observer = new IntersectionObserver(function(entries) {
-            entries.forEach(function(entry) {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('active');
-                }
-            });
-        }, { threshold: 0.1 });
-
-        scrollRevealElements.forEach(function(el) { observer.observe(el); });
-
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
         const uploadList = document.getElementById('upload-list');
         const fileList = document.getElementById('fileList');
+        const toastContainer = document.getElementById('toast-container');
 
         uploadArea.addEventListener('click', function() { fileInput.click(); });
 
         uploadArea.addEventListener('dragover', function(e) {
             e.preventDefault();
-            uploadArea.classList.add('border-primary');
-            uploadArea.classList.add('bg-primary/10');
+            uploadArea.style.backgroundColor = 'rgba(14, 165, 233, 0.15)';
+            uploadArea.style.borderColor = 'rgba(14, 165, 233, 0.5)';
         });
 
         uploadArea.addEventListener('dragleave', function() {
-            uploadArea.classList.remove('border-primary');
-            uploadArea.classList.remove('bg-primary/10');
+            uploadArea.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+            uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.15)';
         });
 
         uploadArea.addEventListener('drop', function(e) {
             e.preventDefault();
-            uploadArea.classList.remove('border-primary');
-            uploadArea.classList.remove('bg-primary/10');
+            uploadArea.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+            uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.15)';
             if (e.dataTransfer.files.length > 0) {
                 handleFiles(e.dataTransfer.files);
             }
@@ -299,7 +269,7 @@ function getHtmlContent(): string {
         function formatFileSize(bytes) {
             if (bytes === 0 || !bytes) return '--';
             const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
@@ -309,10 +279,12 @@ function getHtmlContent(): string {
             if (['pdf'].includes(ext)) return 'text-red-400';
             if (['doc', 'docx'].includes(ext)) return 'text-blue-400';
             if (['xls', 'xlsx'].includes(ext)) return 'text-green-400';
+            if (['ppt', 'pptx'].includes(ext)) return 'text-orange-400';
             if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'text-purple-400';
             if (['mp4', 'avi', 'mov', 'wmv'].includes(ext)) return 'text-yellow-400';
-            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'text-orange-400';
+            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'text-amber-400';
             if (['mp3', 'wav', 'flac'].includes(ext)) return 'text-pink-400';
+            if (['js', 'html', 'css', 'json', 'ts', 'py'].includes(ext)) return 'text-cyan-400';
             return 'text-gray-400';
         }
 
@@ -321,10 +293,12 @@ function getHtmlContent(): string {
             if (['pdf'].includes(ext)) return 'fa-file-pdf-o';
             if (['doc', 'docx'].includes(ext)) return 'fa-file-word-o';
             if (['xls', 'xlsx'].includes(ext)) return 'fa-file-excel-o';
+            if (['ppt', 'pptx'].includes(ext)) return 'fa-file-powerpoint-o';
             if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'fa-file-image-o';
             if (['mp4', 'avi', 'mov', 'wmv'].includes(ext)) return 'fa-file-video-o';
             if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'fa-file-archive-o';
             if (['mp3', 'wav', 'flac'].includes(ext)) return 'fa-file-audio-o';
+            if (['js', 'html', 'css', 'json', 'ts', 'py'].includes(ext)) return 'fa-file-code-o';
             return 'fa-file-o';
         }
 
@@ -335,11 +309,11 @@ function getHtmlContent(): string {
                 if (data.ok && data.files) {
                     displayFiles(data.files);
                 } else {
-                    const errorMsg = data.message || '无法获取文件列表';
-                    fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">' + errorMsg + '</div></div>';
+                    const errorMsg = data.message || '无法获取文件列表，请配置 GITHUB_TOKEN';
+                    fileList.innerHTML = '<div class="text-center py-6 text-red-400 text-sm">' + errorMsg + '</div>';
                 }
             } catch (error) {
-                fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">加载失败，请检查网络连接</div></div>';
+                fileList.innerHTML = '<div class="text-center py-6 text-red-400 text-sm">加载失败: ' + error.message + '</div>';
             }
         }
 
@@ -353,24 +327,37 @@ function getHtmlContent(): string {
 
         function filterFilesByCategory() {
             const filteredFiles = currentCategory === 'all' ? allFilesData : allFilesData.filter(function(f) { return f.type === currentCategory; });
-            
+
             if (filteredFiles.length === 0) {
-                fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">暂无文件</div></div>';
+                fileList.innerHTML = '<div class="text-center py-6 text-white/50 text-sm">暂无文件</div>';
                 return;
             }
 
-            fileList.innerHTML = filteredFiles.map(function(file) {
+            let html = '';
+            filteredFiles.forEach(function(file) {
                 const iconClass = getFileIconClass(file.name);
                 const icon = getFileIcon(file.name);
-                return '<div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group" onclick="downloadFile(\'' + escapeHTML(file.name) + '\', \'' + escapeHTML(file.folder) + '\')">' +
+                html += '<div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" data-name="' + escapeHTML(file.name) + '" data-folder="' + escapeHTML(file.folder) + '">' +
                     '<div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">' +
                     '<i class="fa ' + icon + ' ' + iconClass + '"></i></div>' +
-                    '<div class="flex-1"><div class="text-sm">' + escapeHTML(file.name) + '</div></div>' +
-                    '<div class="text-xs text-white/50">' + formatFileSize(file.size) + '</div>' +
-                    '<div class="text-xs text-white/50 ml-4">' + (file.last_modified ? new Date(file.last_modified).toLocaleDateString('zh-CN') : '--') + '</div>' +
-                    '<button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2" onclick="event.stopPropagation(); deleteFile(\'' + escapeHTML(file.name) + '\', \'' + escapeHTML(file.folder) + '\')">' +
-                    '<i class="fa fa-trash"></i></button></div>';
-            }).join('');
+                    '<div class="flex-1 min-w-0"><div class="text-sm truncate">' + escapeHTML(file.name) + '</div></div>' +
+                    '<div class="text-xs text-white/50 hidden md:block">' + formatFileSize(file.size) + '</div>' +
+                    '<button class="ml-4 text-red-400 hover:text-red-300 px-2 py-1 text-xs delete-btn" data-name="' + escapeHTML(file.name) + '" data-folder="' + escapeHTML(file.folder) + '">' +
+                    '<i class="fa fa-trash"></i></button>' +
+                    '</div>';
+            });
+            fileList.innerHTML = html;
+
+            fileList.querySelectorAll('[data-name]').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    if (e.target.closest('.delete-btn')) {
+                        const btn = e.target.closest('.delete-btn');
+                        deleteFile(btn.dataset.name, btn.dataset.folder);
+                    } else {
+                        downloadFile(el.dataset.name, el.dataset.folder);
+                    }
+                });
+            });
         }
 
         document.getElementById('categoryFilters').addEventListener('click', function(e) {
@@ -400,10 +387,10 @@ function getHtmlContent(): string {
                 const response = await fetch('/api/files/' + encodeURIComponent(filename) + '?category=' + encodeURIComponent(folder), { method: 'DELETE' });
                 const data = await response.json();
                 if (data.ok) {
-                    showToast('删除成功: ' + filename, 'success');
+                    showToast('删除成功', 'success');
                     loadFiles();
                 } else {
-                    showToast('删除失败: ' + data.message, 'error');
+                    showToast('删除失败: ' + (data.message || '未知错误'), 'error');
                 }
             } catch (error) {
                 showToast('删除失败，请稍后重试', 'error');
@@ -411,24 +398,25 @@ function getHtmlContent(): string {
         }
 
         function handleFiles(files) {
-            uploadList.classList.remove('hidden');
+            uploadList.classList.remove('hidden-el');
+            uploadList.style.display = 'block';
             Array.from(files).forEach(function(file) {
                 const uploadItem = document.createElement('div');
-                uploadItem.className = 'glass flex items-center p-4 rounded-lg';
-                uploadItem.innerHTML = '<div class="w-10 h-10 bg-blue-100/20 rounded-lg flex items-center justify-center mr-4">' +
+                uploadItem.className = 'glass rounded-lg p-3 flex items-center';
+                uploadItem.innerHTML = '<div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">' +
                     '<i class="fa ' + getFileIcon(file.name) + ' ' + getFileIconClass(file.name) + '"></i></div>' +
-                    '<div class="flex-1"><div class="font-medium text-sm">' + escapeHTML(file.name) + '</div>' +
-                    '<div class="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-2">' +
-                    '<div class="progress-bar h-full gradient-bg w-0 transition-all duration-300"></div></div></div>' +
+                    '<div class="flex-1"><div class="text-sm">' + escapeHTML(file.name) + '</div>' +
+                    '<div class="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-2">' +
+                    '<div class="progress-bar h-full bg-sky-400 w-0 transition-all duration-300"></div></div></div>' +
                     '<div class="text-sm text-white/70 ml-4 progress-text">0%</div>';
                 uploadList.appendChild(uploadItem);
-                
+
                 const progressBar = uploadItem.querySelector('.progress-bar');
                 const progressText = uploadItem.querySelector('.progress-text');
                 let progress = 0;
-                
+
                 const interval = setInterval(function() {
-                    progress += Math.random() * 15;
+                    progress += Math.random() * 20;
                     if (progress >= 100) {
                         progress = 100;
                         clearInterval(interval);
@@ -438,7 +426,7 @@ function getHtmlContent(): string {
                         progressText.textContent = Math.round(progress) + '%';
                     }
                     progressBar.style.width = progress + '%';
-                }, 200);
+                }, 150);
             });
         }
 
@@ -447,36 +435,35 @@ function getHtmlContent(): string {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('filename', file.name);
-                
+
                 const response = await fetch('/api/upload', { method: 'POST', body: formData });
                 const data = await response.json();
-                
+
                 if (data.ok) {
                     progressText.textContent = '完成';
                     showToast('上传成功: ' + file.name, 'success');
                     loadFiles();
                 } else {
                     progressText.textContent = '失败';
-                    progressBar.classList.remove('gradient-bg');
+                    progressBar.classList.remove('bg-sky-400');
                     progressBar.classList.add('bg-red-500');
-                    showToast('上传失败: ' + data.message, 'error');
+                    showToast('上传失败: ' + (data.message || '未知错误'), 'error');
                 }
             } catch (error) {
                 progressText.textContent = '失败';
-                progressBar.classList.remove('gradient-bg');
+                progressBar.classList.remove('bg-sky-400');
                 progressBar.classList.add('bg-red-500');
-                showToast('上传失败，请稍后重试', 'error');
+                showToast('上传失败: ' + error.message, 'error');
             }
         }
 
         function showToast(message, type) {
-            if (!type) type = 'info';
             const toast = document.createElement('div');
-            toast.className = 'fixed top-20 right-6 px-4 py-3 rounded-lg shadow-lg z-50 ' +
-                (type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+            toast.className = 'px-4 py-3 rounded-lg shadow-lg text-sm text-white ' +
+                (type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600');
             toast.textContent = message;
-            document.body.appendChild(toast);
-            
+            toastContainer.appendChild(toast);
+
             setTimeout(function() {
                 toast.style.opacity = '0';
                 toast.style.transition = 'opacity 0.3s';
@@ -485,13 +472,16 @@ function getHtmlContent(): string {
         }
 
         document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
-            anchor.addEventListener('click', function (e) {
+            anchor.addEventListener('click', function(e) {
                 e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+                const target = document.querySelector(anchor.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             });
         });
 
-        document.addEventListener('DOMContentLoaded', loadFiles);
+        loadFiles();
     </script>
 </body>
 </html>`;
@@ -520,21 +510,21 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
 
 async function fetchGitHubFiles(token: string, owner: string, repo: string): Promise<any[]> {
   const files: any[] = [];
-  
+
   async function traverse(path: string): Promise<void> {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json'
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
       }
     });
-    
+
     if (!response.ok) return;
-    
+
     const items = await response.json();
     if (!Array.isArray(items)) return;
-    
+
     for (const item of items) {
       if (item.type === 'dir') {
         await traverse(item.path);
@@ -553,7 +543,7 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
       }
     }
   }
-  
+
   await traverse('files');
   return files;
 }
@@ -567,7 +557,7 @@ function getCategory(ext: string): { name: string; icon: string } {
     xlsx: { name: 'Excel表格', icon: '📊' },
     ppt: { name: 'PPT演示', icon: '📽️' },
     pptx: { name: 'PPT演示', icon: '📽️' },
-    txt: { name: '文本文件', icon: '📃' },
+    txt: { name: '其他文件', icon: '📃' },
     jpg: { name: '图片', icon: '🖼️' },
     jpeg: { name: '图片', icon: '🖼️' },
     png: { name: '图片', icon: '🖼️' },
@@ -602,7 +592,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const formData = await request.formData();
     const file = formData.get('file');
     const filename = formData.get('filename') || (file as File).name;
-    
+
     if (!file) {
       return new Response(JSON.stringify({ ok: false, message: '请选择文件' }), {
         status: 400,
@@ -621,8 +611,8 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -641,6 +631,68 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     }
 
     return new Response(JSON.stringify({ ok: true, message: '上传成功', filename, folder }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ ok: false, message: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+async function handleDelete(filename: string, folder: string, token: string, owner: string, repo: string): Promise<Response> {
+  if (!token) {
+    return new Response(JSON.stringify({ ok: false, message: '请配置 GITHUB_TOKEN' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    const path = `${folder}/${filename}`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+    const getResponse = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+
+    if (!getResponse.ok) {
+      return new Response(JSON.stringify({ ok: false, message: '文件不存在' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const fileInfo = await getResponse.json();
+    const sha = fileInfo.sha;
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `Delete: ${filename}`,
+        sha,
+        branch: 'main'
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      return new Response(JSON.stringify({ ok: false, message: data.message || '删除失败' }), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, message: '删除成功' }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
@@ -696,8 +748,8 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${fullPath}`;
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.raw'
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.raw'
       }
     });
 
