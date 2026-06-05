@@ -23,6 +23,7 @@ function getGitHubHeaders(token: string): Record<string, string> {
 function getUploadHeaders(token: string): Record<string, string> {
   return {
     'Authorization': `token ${token}`,
+    'Accept': 'application/vnd.github+json',
     'User-Agent': 'Sharing-App/1.0'
   };
 }
@@ -430,11 +431,30 @@ async function handleUpload(request: Request, token: string, owner: string, repo
 
   try {
     console.log('=== Upload request received ===');
+    console.log('Request headers:', Object.fromEntries(request.headers.entries()));
+    
     const formData = await request.formData();
     console.log('FormData parsed');
+    console.log('FormData entries:');
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: File(name=${value.name}, size=${value.size}, type=${value.type})`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    }
     
     const file = formData.get('file') as File;
     const originalFilename = formData.get('filename')?.toString() || file?.name || 'unknown';
+
+    console.log('=== File object details ===');
+    console.log('file.name:', file.name);
+    console.log('file.type:', file.type);
+    console.log('file.size:', file.size);
+    console.log('file.lastModified:', file.lastModified);
+    console.log('originalFilename:', originalFilename);
+    console.log('originalFilename length:', originalFilename.length);
+    console.log('originalFilename char codes:', originalFilename.split('').map(c => c.charCodeAt(0).toString(16)).join(' '));
 
     if (!file) {
       return jsonResponse({ ok: false, message: '请选择文件' }, 400);
@@ -536,9 +556,19 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     
     console.log('Upload URL:', uploadUrl);
     console.log('Filename for header:', filename);
+    console.log('Encoded filename:', encodedFilename);
 
     // 构建 RFC 5987 格式的文件名参数
     const rfc5987Filename = encodeURIComponent(filename).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
+    
+    // 构建安全的 ASCII 文件名（只作为备用）
+    const asciiFilename = filename.split('').map(c => {
+      const code = c.charCodeAt(0);
+      if (code < 128) return c;
+      return '_';
+    }).join('');
+    
+    console.log('ASCII filename:', asciiFilename);
     
     // 上传尝试 - 同时在 URL 和 Content-Disposition 头里指定文件名
     let response = await fetch(uploadUrl, {
@@ -547,66 +577,61 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
         ...getUploadHeaders(token),
         'Content-Type': 'application/octet-stream',
         'Content-Length': file.size.toString(),
-        'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
+        'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
       },
       body: binaryContent
     });
 
     console.log('Upload response status:', response.status);
 
-    // 如果 422 already_exists，使用带真实时间戳的文件名
+    // 如果 422 already_exists，再次尝试删除并上传
     if (!response.ok && response.status === 422) {
       const errorText = await response.text();
       console.error('Got 422, checking error:', errorText);
       
       if (errorText.includes('already_exists')) {
-        console.log('File still exists according to GitHub, trying with real timestamp suffix...');
+        console.log('File still exists! Trying to delete again, wait longer, then re-upload...');
         
-        // 使用真实时间戳，精确到秒
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const timestamp = `${year}${month}${day}-${hours}${minutes}${seconds}`;
+        // 再次查找并删除文件（更仔细的查找）
+        const checkAgainResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
+          headers: getGitHubHeaders(token)
+        });
         
-        const extIndex = filename.lastIndexOf('.');
-        let newFilename = '';
-        if (extIndex > 0) {
-          const name = filename.substring(0, extIndex);
-          const ext = filename.substring(extIndex);
-          newFilename = `${name}_${timestamp}${ext}`;
-        } else {
-          newFilename = `${filename}_${timestamp}`;
+        if (checkAgainResp.ok) {
+          const assets = await checkAgainResp.json();
+          // 不区分大小写和模糊匹配，确保找到文件
+          let assetToDelete = assets.find((a: any) => a.name === filename);
+          if (!assetToDelete) {
+            assetToDelete = assets.find((a: any) => a.name.toLowerCase() === filename.toLowerCase());
+          }
+          
+          if (assetToDelete) {
+            console.log(`Deleting asset again: [${assetToDelete.id}] ${assetToDelete.name}`);
+            const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${assetToDelete.id}`, {
+              method: 'DELETE',
+              headers: getGitHubHeaders(token)
+            });
+            console.log(`Second delete response: ${deleteResp.status}`);
+          }
         }
         
-        console.log(`Trying with new filename: ${newFilename}`);
-        console.log('New filename for header:', newFilename);
+        // 等待更久，确保 GitHub 完全处理删除
+        console.log('Waiting 5 seconds for GitHub consistency...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
         
-        // 构建 RFC 5987 格式的文件名参数
-        const newRfc5987Filename = encodeURIComponent(newFilename).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
-        
-        const newEncodedFilename = encodeURIComponent(newFilename);
-        const newUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${newEncodedFilename}`;
-        
-        response = await fetch(newUploadUrl, {
+        // 再次尝试上传
+        console.log('Re-uploading file...');
+        response = await fetch(uploadUrl, {
           method: 'POST',
           headers: {
             ...getUploadHeaders(token),
             'Content-Type': 'application/octet-stream',
             'Content-Length': file.size.toString(),
-            'Content-Disposition': `attachment; filename="${newFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${newRfc5987Filename}`
+            'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
           },
           body: binaryContent
         });
-        
-        if (response.ok) {
-          const asset = await response.json();
-          console.log(`Successfully uploaded with new filename: ${newFilename}`);
-          return { success: true, asset };
-        }
+        console.log('Second upload response status:', response.status);
       }
     }
 
