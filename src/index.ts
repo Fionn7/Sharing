@@ -61,10 +61,33 @@ export default {
       let githubStatus = 'unknown';
       let rawResponse: any = null;
       let traverseLog: string[] = [];
+      let tokenInfo: any = {};
       
       if (githubToken) {
         try {
-          // 测试直接获取 files 目录
+          // 测试 token 有效性 - 获取当前用户
+          const userResp = await fetch('https://api.github.com/user', {
+            headers: {
+              'Authorization': `Bearer ${githubToken}`,
+              'Accept': 'application/vnd.github+json'
+            }
+          });
+          tokenInfo.userStatus = `${userResp.status} ${userResp.statusText}`;
+          if (userResp.ok) {
+            const userData = await userResp.json();
+            tokenInfo.user = userData.login;
+          }
+          
+          // 测试仓库访问
+          const repoResp = await fetch(`https://api.github.com/repos/${githubOwner}/${githubRepo}`, {
+            headers: {
+              'Authorization': `Bearer ${githubToken}`,
+              'Accept': 'application/vnd.github+json'
+            }
+          });
+          tokenInfo.repoStatus = `${repoResp.status} ${repoResp.statusText}`;
+          
+          // 测试 files 目录
           const testUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files`;
           const testResp = await fetch(testUrl, {
             headers: {
@@ -78,32 +101,15 @@ export default {
             const data = await testResp.json();
             rawResponse = data;
             
-            // 手动遍历一层看看
             if (Array.isArray(data)) {
               traverseLog.push(`files/ 目录包含 ${data.length} 个项目`);
               for (const item of data) {
                 traverseLog.push(`  - ${item.name} (${item.type})`);
-                if (item.type === 'dir') {
-                  // 获取子目录内容
-                  const subUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/${item.path}`;
-                  const subResp = await fetch(subUrl, {
-                    headers: {
-                      'Authorization': `Bearer ${githubToken}`,
-                      'Accept': 'application/vnd.github+json'
-                    }
-                  });
-                  if (subResp.ok) {
-                    const subData = await subResp.json();
-                    if (Array.isArray(subData)) {
-                      traverseLog.push(`    ${item.path}/ 包含 ${subData.length} 个项目`);
-                      for (const subItem of subData) {
-                        traverseLog.push(`      - ${subItem.name} (${subItem.type})`);
-                      }
-                    }
-                  }
-                }
               }
             }
+          } else {
+            const errorText = await testResp.text();
+            traverseLog.push(`Error: ${errorText}`);
           }
         } catch (e) {
           githubStatus = `error: ${e instanceof Error ? e.message : 'unknown'}`;
@@ -113,8 +119,10 @@ export default {
       return jsonResponse({
         ok: true,
         tokenConfigured: !!githubToken,
+        tokenPrefix: githubToken ? githubToken.substring(0, 10) + '...' : null,
         owner: githubOwner,
         repo: githubRepo,
+        tokenInfo,
         githubStatus,
         rawResponse,
         traverseLog
