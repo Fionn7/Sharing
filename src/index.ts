@@ -522,7 +522,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     // 直接从 file 读取二进制
     const binaryContent = await file.arrayBuffer();
     
-    // 首先检查文件是否存在
+    // 首先检查文件是否存在 - 智能查找（考虑 GitHub 可能修改文件名）
     const checkResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
       headers: getGitHubHeaders(token)
     });
@@ -530,9 +530,40 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     let existingAsset: any = null;
     if (checkResp.ok) {
       const assets = await checkResp.json();
+      console.log('Current assets:', assets.map((a: any) => `[${a.id}] ${a.name}`));
+      
+      // 多种方式查找：
+      // 1. 精确匹配
       existingAsset = assets.find((a: any) => a.name === filename);
+      // 2. 小写匹配
+      if (!existingAsset) {
+        existingAsset = assets.find((a: any) => a.name.toLowerCase() === filename.toLowerCase());
+      }
+      // 3. 扩展名匹配（只看扩展名是否相同，且文件名开头相似）
+      if (!existingAsset) {
+        const ext = filename.includes('.') ? filename.split('.').pop() : '';
+        const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+        const baseNameLower = baseName.toLowerCase();
+        
+        existingAsset = assets.find((a: any) => {
+          const aExt = a.name.includes('.') ? a.name.split('.').pop() : '';
+          if (ext && aExt && ext.toLowerCase() === aExt.toLowerCase()) {
+            // 检查文件名开头是否有相似性（前3个字符）
+            const aBaseName = a.name.includes('.') ? a.name.substring(0, a.name.lastIndexOf('.')) : a.name;
+            const aBaseLower = aBaseName.toLowerCase();
+            
+            // 检查是否有共同的字符序列
+            if (baseNameLower.substring(0, Math.min(3, baseNameLower.length)) === 
+                aBaseLower.substring(0, Math.min(3, aBaseLower.length))) {
+              return true;
+            }
+          }
+          return false;
+        });
+      }
+      
       if (existingAsset) {
-        console.log(`File "${filename}" already exists (ID: ${existingAsset.id})`);
+        console.log(`Found matching file to replace: "${existingAsset.name}" (ID: ${existingAsset.id})`);
       }
     }
     
@@ -546,8 +577,26 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       
       console.log(`Delete response: ${deleteResp.status}`);
       
-      // 等待确保 GitHub 处理删除
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 等待更长时间确保 GitHub 处理删除
+      console.log('Waiting 4 seconds for GitHub to process deletion...');
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      
+      // 验证文件是否真的被删除了
+      console.log('Verifying file deletion...');
+      const verifyResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (verifyResp.ok) {
+        const assetsAfterDelete = await verifyResp.json();
+        const stillExists = assetsAfterDelete.find((a: any) => a.id === existingAsset.id);
+        if (stillExists) {
+          console.warn('File still exists after deletion! Waiting 3 more seconds...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } else {
+          console.log('File successfully deleted!');
+        }
+      }
     }
     
     // 构建上传 URL - GitHub 推荐的方式
@@ -592,17 +641,41 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       if (errorText.includes('already_exists')) {
         console.log('File still exists! Trying to delete again, wait longer, then re-upload...');
         
-        // 再次查找并删除文件（更仔细的查找）
+        // 再次查找并删除文件（使用相同的智能查找逻辑）
         const checkAgainResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
           headers: getGitHubHeaders(token)
         });
         
         if (checkAgainResp.ok) {
           const assets = await checkAgainResp.json();
-          // 不区分大小写和模糊匹配，确保找到文件
-          let assetToDelete = assets.find((a: any) => a.name === filename);
+          console.log('Assets before second delete:', assets.map((a: any) => `[${a.id}] ${a.name}`));
+          
+          // 使用与第一次相同的智能查找逻辑
+          let assetToDelete: any = null;
+          // 1. 精确匹配
+          assetToDelete = assets.find((a: any) => a.name === filename);
+          // 2. 小写匹配
           if (!assetToDelete) {
             assetToDelete = assets.find((a: any) => a.name.toLowerCase() === filename.toLowerCase());
+          }
+          // 3. 扩展名匹配
+          if (!assetToDelete) {
+            const ext = filename.includes('.') ? filename.split('.').pop() : '';
+            const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+            const baseNameLower = baseName.toLowerCase();
+            
+            assetToDelete = assets.find((a: any) => {
+              const aExt = a.name.includes('.') ? a.name.split('.').pop() : '';
+              if (ext && aExt && ext.toLowerCase() === aExt.toLowerCase()) {
+                const aBaseName = a.name.includes('.') ? a.name.substring(0, a.name.lastIndexOf('.')) : a.name;
+                const aBaseLower = aBaseName.toLowerCase();
+                if (baseNameLower.substring(0, Math.min(3, baseNameLower.length)) === 
+                    aBaseLower.substring(0, Math.min(3, aBaseLower.length))) {
+                  return true;
+                }
+              }
+              return false;
+            });
           }
           
           if (assetToDelete) {
@@ -612,6 +685,8 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
               headers: getGitHubHeaders(token)
             });
             console.log(`Second delete response: ${deleteResp.status}`);
+          } else {
+            console.log('No matching asset found to delete on second attempt');
           }
         }
         
