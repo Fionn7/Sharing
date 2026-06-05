@@ -407,9 +407,9 @@
                 const isSelected = selectedFiles.has(file.path);
                 
                 return `
-                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-primary/20 border border-primary/50' : ''}" data-path="${escapeHTML(file.path)}">
+                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-sky-500/30 border border-sky-500/50' : ''}" data-path="${escapeHTML(file.path)}">
                         <div class="mr-3 flex items-center">
-                            <input type="checkbox" class="w-5 h-5 cursor-pointer rounded border-white/30 bg-white/10 text-primary focus:ring-primary/50 focus:ring-offset-0" ${isSelected ? 'checked' : ''} onchange="toggleSelectFile('${escapeHTML(file.path)}')">
+                            <input type="checkbox" class="w-5 h-5 cursor-pointer rounded border-white/30 bg-white/10 text-sky-500 focus:ring-sky-500/50 focus:ring-offset-0" ${isSelected ? 'checked' : ''} onchange="toggleSelectFile('${escapeHTML(file.path)}')">
                         </div>
                         <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
                             <i class="fa ${icon} ${iconClass}"></i>

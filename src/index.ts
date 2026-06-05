@@ -461,10 +461,14 @@ async function handleUpload(request: Request, token: string, owner: string, repo
         headers: getGitHubHeaders(token)
       });
       console.log(`Delete response: ${deleteResp.status}`);
+      // 等待一小段时间确保删除完成
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // 上传新 asset
-    const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(filename)}`;
+    // 正确构建上传 URL - 对文件名进行适当编码
+    // GitHub Releases API 需要正确的 URL 编码
+    const encodedFilename = encodeURIComponent(filename);
+    const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodedFilename}`;
     console.log(`Upload URL: ${uploadUrl}`);
     
     // 直接从 file 读取二进制
@@ -475,7 +479,9 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       method: 'POST',
       headers: {
         ...getUploadHeaders(token),
-        'Content-Type': 'application/octet-stream'
+        'Content-Type': 'application/octet-stream',
+        // 对于大文件，可以添加一些额外的头信息
+        'Content-Length': file.size.toString()
       },
       body: binaryContent
     });
@@ -491,6 +497,41 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       } catch {
         errorMessage = errorText;
       }
+      
+      // 如果是文件名相关的错误，尝试简化文件名
+      if (errorMessage.includes('name') || errorMessage.includes('invalid')) {
+        console.log('Attempting with simplified filename...');
+        // 尝试只保留 ASCII 字符和扩展名
+        const simpleName = simplifyFilename(filename);
+        if (simpleName !== filename) {
+          console.log(`Trying simplified name: ${simpleName}`);
+          const simpleUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(simpleName)}`;
+          
+          const retryResponse = await fetch(simpleUploadUrl, {
+            method: 'POST',
+            headers: {
+              ...getUploadHeaders(token),
+              'Content-Type': 'application/octet-stream',
+              'Content-Length': file.size.toString()
+            },
+            body: binaryContent
+          });
+          
+          if (retryResponse.ok) {
+            const asset = await retryResponse.json();
+            console.log('Upload successful with simplified name, asset:', asset);
+            return jsonResponse({ 
+              ok: true, 
+              message: '上传成功', 
+              filename: simpleName, 
+              folder,
+              isLargeFile: true,
+              downloadUrl: asset.browser_download_url
+            });
+          }
+        }
+      }
+      
       return jsonResponse({ ok: false, message: errorMessage }, response.status);
     }
 
@@ -512,19 +553,65 @@ async function handleUpload(request: Request, token: string, owner: string, repo
   }
 }
 
-// 清理文件名，移除或替换 GitHub 不允许的字符
+// 简化文件名，只保留安全字符
+function simplifyFilename(filename: string): string {
+  const ext = filename.split('.').pop();
+  const name = filename.substring(0, filename.length - (ext ? ext.length + 1 : 0));
+  
+  // 只保留字母、数字、下划线、连字符
+  let simpleName = name.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  
+  // 确保不为空
+  if (!simpleName) {
+    simpleName = 'file';
+  }
+  
+  // 限制长度
+  simpleName = simpleName.substring(0, 50);
+  
+  return ext ? `${simpleName}.${ext}` : simpleName;
+}
+
+// 清理文件名，移除或替换 GitHub 不允许的字符，同时保留中文字符
 function sanitizeFilename(filename: string): string {
+  console.log('Original filename:', filename);
+  
   // 移除控制字符
   let sanitized = filename.replace(/[\x00-\x1F\x7F]/g, '');
   
-  // 替换或移除有问题的字符
+  // 替换文件系统不允许的字符，但保留中文字符
+  // 只替换 / \ ? % * : | " < > 这些真正有问题的字符
   sanitized = sanitized.replace(/[\/\\?%*:|"<>]/g, '_');
   
-  // 确保文件名不为空
-  if (!sanitized || sanitized === '.') {
-    sanitized = 'unnamed_file';
+  // 处理 Windows 下的保留文件名
+  const reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+  const nameWithoutExt = sanitized.split('.')[0].toUpperCase();
+  if (reservedNames.includes(nameWithoutExt)) {
+    sanitized = '_' + sanitized;
   }
   
+  // 移除首尾空格
+  sanitized = sanitized.trim();
+  
+  // 确保文件名不为空
+  if (!sanitized || sanitized === '.' || sanitized === '..') {
+    const ext = filename.split('.').pop();
+    sanitized = ext && ext !== filename ? `unnamed_file.${ext}` : 'unnamed_file';
+  }
+  
+  // 限制文件名长度（GitHub Releases 有一定限制）
+  if (sanitized.length > 255) {
+    const extIndex = sanitized.lastIndexOf('.');
+    if (extIndex > 0) {
+      const ext = sanitized.substring(extIndex);
+      const name = sanitized.substring(0, extIndex);
+      sanitized = name.substring(0, 250 - ext.length) + ext;
+    } else {
+      sanitized = sanitized.substring(0, 250);
+    }
+  }
+  
+  console.log('Sanitized filename:', sanitized);
   return sanitized;
 }
 
