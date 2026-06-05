@@ -22,11 +22,26 @@ loadEnv();
 const app = express();
 const PORT = Number(process.env.PORT) || 3100;
 
-// 文件大小限制 - 50MB（Render 免费版内存和超时限制）
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+// 文件大小限制 - 10MB（Render 免费版内存限制为 512MB）
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-// GitHub API 分块上传的块大小（最大 25MB）
-const CHUNK_SIZE = 25 * 1024 * 1024;
+// 内存友好的流式 base64 编码
+async function streamToBase64(filePath) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const stream = fs.createReadStream(filePath, { highWaterMark: 64 * 1024 });
+    
+    stream.on('data', (chunk) => {
+      chunks.push(chunk.toString('base64'));
+    });
+    
+    stream.on('end', () => {
+      resolve(chunks.join(''));
+    });
+    
+    stream.on('error', reject);
+  });
+}
 
 // 使用磁盘存储替代内存存储，减少内存占用
 const upload = multer({
@@ -46,24 +61,6 @@ const upload = multer({
     fileSize: MAX_FILE_SIZE,
   },
 });
-
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Fionn7';
-const GITHUB_REPO = process.env.GITHUB_REPO || 'Sharing';
-const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
-
-// 计算文件的 SHA256
-async function calculateSHA256(filePath) {
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256');
-  const stream = fs.createReadStream(filePath);
-  
-  return new Promise((resolve, reject) => {
-    stream.on('data', (data) => hash.update(data));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
-  });
-}
 
 // 文件类型分类函数
 function getFileCategory(ext) {
@@ -319,10 +316,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ ok: false, message: '请上传文件' });
     }
 
-    if (!GITHUB_TOKEN) {
-      return res.status(500).json({ ok: false, message: '未配置 GITHUB_TOKEN' });
-    }
-
     const filename = req.body.filename || req.file.originalname;
     const safeFilename = filename.replace(/\/+/, '_').replace(/\\/g, '_');
     const fileSize = req.file.size;
@@ -348,28 +341,16 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    let uploadResult;
-    
-    // 根据文件大小选择上传方式
-    if (fileSize > 20 * 1024 * 1024) {
-      // 大文件使用流式分块上传
-      console.log('使用流式分块上传...');
-      uploadResult = await uploadFileInChunks(req.file.path, folder, safeFilename, fileSize);
-    } else {
-      // 小文件使用普通方式
-      console.log('使用普通上传...');
-      uploadResult = await uploadSmallFile(req.file.path, folder, safeFilename);
-    }
-    
-    // 清理临时文件
-    fs.unlink(req.file.path, (err) => {
-      if (err) console.warn('删除临时文件失败:', err);
-    });
-    
-    if (!uploadResult.ok) {
-      return res.status(500).json({ ok: false, message: uploadResult.message });
+    // 创建目标文件夹
+    const targetDir = path.join(__dirname, folder);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
     }
 
+    // 将临时文件移动到目标位置（流式操作，内存友好）
+    const targetPath = path.join(targetDir, safeFilename);
+    fs.renameSync(req.file.path, targetPath);
+    
     console.log('上传成功!');
     return res.json({
       ok: true,
@@ -379,7 +360,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       category: folder,
       fileType: fileType,
       fileIcon: fileCategory.icon,
-      downloadUrl: `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/${folder}/${safeFilename}`,
+      downloadUrl: `/download/${folder}/${safeFilename}`,
     });
   } catch (error) {
     console.error('上传失败:', error);
@@ -392,202 +373,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     return res.status(500).json({ ok: false, message: '服务器异常', error: error.message });
   }
 });
-
-// 上传小文件（< 20MB）
-async function uploadSmallFile(filePath, folder, filename) {
-  try {
-    // 读取文件内容
-    const fileContent = await fs.promises.readFile(filePath);
-    const content = fileContent.toString('base64');
-    
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${filename}`;
-    
-    // 检查文件是否已存在
-    const shaRes = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'sharing-file-backend',
-      },
-    });
-
-    let sha = null;
-    if (shaRes.ok) {
-      const existing = await shaRes.json();
-      sha = existing.sha;
-      console.log('文件已存在，SHA:', sha);
-    }
-
-    // 上传文件
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'sharing-file-backend',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: `Upload file: ${filename}`,
-        content,
-        branch: GITHUB_BRANCH,
-        sha,
-      }),
-    });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      return { ok: false, message: data.message || '上传失败' };
-    }
-
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, message: error.message };
-  }
-}
-
-// 分块上传大文件（使用 GitHub Git Blob API）
-async function uploadFileInChunks(filePath, folder, filename, fileSize) {
-  try {
-    const headers = {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'sharing-file-backend',
-      'Content-Type': 'application/json',
-    };
-
-    console.log('使用 Git Blob API 上传大文件...');
-
-    // 1. 读取文件内容并创建 base64
-    console.log('读取文件内容...');
-    const fileContent = await fs.promises.readFile(filePath);
-    const content = fileContent.toString('base64');
-
-    // 2. 创建 Git Blob
-    console.log('创建 Git Blob...');
-    const blobUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`;
-    const blobResponse = await fetch(blobUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        content: content,
-        encoding: 'base64',
-      }),
-    });
-
-    if (!blobResponse.ok) {
-      const blobData = await blobResponse.json().catch(() => ({}));
-      return { ok: false, message: `创建 Blob 失败: ${blobData.message || blobResponse.status}` };
-    }
-
-    const blobData = await blobResponse.json();
-    console.log('Blob 创建成功:', blobData.sha);
-
-    // 3. 获取当前分支的 SHA
-    console.log('获取当前分支 SHA...');
-    const branchUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`;
-    const branchResponse = await fetch(branchUrl, { headers });
-
-    if (!branchResponse.ok) {
-      return { ok: false, message: '获取分支信息失败' };
-    }
-
-    const branchData = await branchResponse.json();
-    const currentTreeSha = branchData.object.sha;
-
-    // 4. 获取当前树
-    console.log('获取当前树...');
-    const treeUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${currentTreeSha}?recursive=1`;
-    const treeResponse = await fetch(treeUrl, { headers });
-
-    if (!treeResponse.ok) {
-      return { ok: false, message: '获取树信息失败' };
-    }
-
-    const treeData = await treeResponse.json();
-    const folderPath = folder.replace(/^files\//, '');
-
-    // 5. 创建新的树节点
-    console.log('创建新的树节点...');
-    const newTreeItem = {
-      path: `${folderPath}/${filename}`,
-      mode: '100644',
-      type: 'blob',
-      sha: blobData.sha,
-    };
-
-    // 检查文件是否已存在
-    const existingItem = treeData.tree.find(item => item.path === `${folderPath}/${filename}`);
-    const newTree = existingItem
-      ? treeData.tree.map(item => item.path === `${folderPath}/${filename}` ? newTreeItem : item)
-      : [...treeData.tree, newTreeItem];
-
-    // 6. 创建新的树
-    console.log('创建新的树...');
-    const createTreeUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`;
-    const createTreeResponse = await fetch(createTreeUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        base_tree: currentTreeSha,
-        tree: newTree,
-      }),
-    });
-
-    if (!createTreeResponse.ok) {
-      const createTreeData = await createTreeResponse.json().catch(() => ({}));
-      return { ok: false, message: `创建树失败: ${createTreeData.message || createTreeResponse.status}` };
-    }
-
-    const newTreeData = await createTreeResponse.json();
-    console.log('新树创建成功:', newTreeData.sha);
-
-    // 7. 创建新的提交
-    console.log('创建新的提交...');
-    const commitUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`;
-    const commitResponse = await fetch(commitUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message: `Upload file: ${filename}`,
-        tree: newTreeData.sha,
-        parents: [currentTreeSha],
-      }),
-    });
-
-    if (!commitResponse.ok) {
-      const commitData = await commitResponse.json().catch(() => ({}));
-      return { ok: false, message: `创建提交失败: ${commitData.message || commitResponse.status}` };
-    }
-
-    const commitData = await commitResponse.json();
-    console.log('提交创建成功:', commitData.sha);
-
-    // 8. 更新分支引用
-    console.log('更新分支引用...');
-    const updateRefUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`;
-    const updateRefResponse = await fetch(updateRefUrl, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        sha: commitData.sha,
-      }),
-    });
-
-    if (!updateRefResponse.ok) {
-      const updateRefData = await updateRefResponse.json().catch(() => ({}));
-      return { ok: false, message: `更新分支失败: ${updateRefData.message || updateRefResponse.status}` };
-    }
-
-    console.log('大文件上传成功!');
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, message: error.message };
-  }
-}
 
 app.listen(PORT, () => {
   console.log(`File backend listening on http://localhost:${PORT}`);
