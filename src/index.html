@@ -213,12 +213,17 @@
                 <div class="lg:w-96" id="diagnosticPanel" style="display: none;">
                     <div class="glass rounded-2xl overflow-hidden sticky top-24">
                         <div class="p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-lg font-bold flex items-center">
-                                    <i class="fa fa-exclamation-triangle text-yellow-400 mr-2"></i>
-                                    上传诊断
-                                </h3>
-                                <button onclick="hideDiagnosticPanel()" class="text-white/60 hover:text-white transition-colors">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center mr-3">
+                                        <i class="fa fa-exclamation-triangle text-yellow-400"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-bold">上传诊断</h3>
+                                        <p class="text-xs text-white/50">文件名问题检测</p>
+                                    </div>
+                                </div>
+                                <button onclick="hideDiagnosticPanel()" class="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center text-white/60 hover:text-white transition-colors">
                                     <i class="fa fa-times"></i>
                                 </button>
                             </div>
@@ -437,49 +442,78 @@
             const panel = document.getElementById('diagnosticPanel');
             const content = document.getElementById('diagnosticContent');
             
-            let html = '';
+            let html = `
+                <div class="text-sm text-white/70 mb-4">
+                    检测到 ${problems.length} 个文件名问题
+                </div>
+            `;
             
             problems.forEach((problem, index) => {
+                const expectedIcon = getFileIcon(problem.expected);
+                const expectedIconClass = getFileIconClass(problem.expected);
+                const actualIcon = getFileIcon(problem.actual);
+                const actualIconClass = getFileIconClass(problem.actual);
+                
                 html += `
-                    <div class="bg-red-500/20 rounded-lg p-4">
-                        <div class="font-medium text-red-300 mb-2">
-                            <i class="fa fa-warning mr-2"></i>
-                            问题 #${index + 1}
+                    <div class="space-y-3 mb-6">
+                        <!-- 期望文件 -->
+                        <div class="flex items-center p-3 rounded-lg bg-white/5 border border-white/10">
+                            <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">
+                                <i class="fa ${expectedIcon} ${expectedIconClass}"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="text-xs text-white/50 mb-1">期望文件名</div>
+                                <div class="text-sm">${escapeHTML(problem.expected)}</div>
+                            </div>
                         </div>
-                        <div class="space-y-2">
-                            <div>
-                                <span class="text-white/60">期望文件名：</span>
-                                <div class="font-mono text-xs mt-1 bg-white/5 p-2 rounded break-all">
-                                    ${escapeHTML(problem.expected)}
-                                </div>
+                        
+                        <!-- 箭头指示 -->
+                        <div class="flex justify-center">
+                            <div class="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center">
+                                <i class="fa fa-arrow-down text-white/50 text-xs"></i>
                             </div>
-                            <div>
-                                <span class="text-white/60">实际文件名：</span>
-                                <div class="font-mono text-xs mt-1 bg-white/5 p-2 rounded break-all text-red-300">
-                                    ${escapeHTML(problem.actual)}
-                                </div>
-                            </div>
-                            ${problem.chineseLost ? `
-                            <div class="text-yellow-300 text-xs mt-2">
-                                <i class="fa fa-info-circle mr-1"></i>
-                                检测到中文字符丢失
-                            </div>
-                            ` : ''}
                         </div>
+                        
+                        <!-- 实际文件 -->
+                        <div class="flex items-center p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                            <div class="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center mr-4">
+                                <i class="fa ${actualIcon} ${actualIconClass}"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="text-xs text-red-300 mb-1">实际文件名 <i class="fa fa-exclamation-circle ml-1"></i></div>
+                                <div class="text-sm">${escapeHTML(problem.actual)}</div>
+                            </div>
+                        </div>
+                        
+                        ${problem.chineseLost ? `
+                        <div class="flex items-center p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-300">
+                            <i class="fa fa-info-circle mr-2"></i>
+                            检测到中文字符丢失
+                        </div>
+                        ` : ''}
                     </div>
                 `;
             });
             
             html += `
                 <div class="bg-white/5 rounded-lg p-4">
-                    <div class="font-medium mb-2">
-                        <i class="fa fa-info-circle text-blue-400 mr-2"></i>
+                    <div class="font-medium mb-3 flex items-center">
+                        <i class="fa fa-lightbulb-o text-yellow-400 mr-2"></i>
                         诊断建议
                     </div>
-                    <ul class="text-white/70 text-xs space-y-1">
-                        <li>• 请检查 Cloudflare Workers 日志获取详细信息</li>
-                        <li>• GitHub Releases API 对非 ASCII 文件名有特殊处理</li>
-                        <li>• 尝试使用纯英文文件名上传测试</li>
+                    <ul class="text-white/70 text-xs space-y-2">
+                        <li class="flex items-start">
+                            <i class="fa fa-caret-right text-white/40 mr-2 mt-0.5"></i>
+                            请检查 Cloudflare Workers 日志获取详细信息
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-caret-right text-white/40 mr-2 mt-0.5"></i>
+                            GitHub Releases API 对非 ASCII 文件名有特殊处理
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-caret-right text-white/40 mr-2 mt-0.5"></i>
+                            尝试使用纯英文文件名上传测试
+                        </li>
                     </ul>
                 </div>
             `;
