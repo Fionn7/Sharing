@@ -5,8 +5,3 @@ main = "src/index.ts"
 [vars]
 GITHUB_OWNER = "Fionn7"
 GITHUB_REPO = "Sharing"
-
-# KV 命名空间绑定 - 所有环境共享同一个 KV
-kv_namespaces = [
-  { binding = "FILE_METADATA", id = "your_kv_namespace_id_here" }
-]

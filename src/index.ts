@@ -1,6 +1,4 @@
 const GITHUB_BRANCH = 'main';
-const KV_FILE_LIST_KEY = 'file_list';
-const KV_LAST_SYNC_KEY = 'last_sync_time';
 
 function getFileCategory(ext: string) {
   const categories: Record<string, { folder: string; type: string; icon: string }> = {
@@ -48,14 +46,12 @@ interface FileMetadata {
   size: number;
   last_modified: string;
   downloadUrl: string;
-  sha?: string;
 }
 
 interface Env {
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
-  FILE_METADATA?: KVNamespace;
 }
 
 export default {
@@ -90,21 +86,17 @@ export default {
     }
 
     if (pathname === '/api/files' && method === 'GET') {
-      return handleGetFiles(env.FILE_METADATA, githubToken, githubOwner, githubRepo);
+      return handleGetFiles(githubToken, githubOwner, githubRepo);
     }
 
     if (pathname.startsWith('/api/files/') && method === 'DELETE') {
       const filename = decodeURIComponent(pathname.replace('/api/files/', ''));
       const category = url.searchParams.get('category');
-      return handleDeleteFile(filename, category || '', env.FILE_METADATA, githubToken, githubOwner, githubRepo);
+      return handleDeleteFile(filename, category || '', githubToken, githubOwner, githubRepo);
     }
 
     if (pathname === '/api/upload' && method === 'POST') {
-      return handleUpload(request, env.FILE_METADATA, githubToken, githubOwner, githubRepo);
-    }
-
-    if (pathname === '/api/sync' && method === 'POST') {
-      return handleSyncFiles(env.FILE_METADATA, githubToken, githubOwner, githubRepo);
+      return handleUpload(request, githubToken, githubOwner, githubRepo);
     }
 
     if (pathname.startsWith('/download/')) {
@@ -210,9 +202,6 @@ async function handleStaticFile(filename: string): Promise<Response> {
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="#files" class="text-white/80 hover:text-white transition-colors text-sm">文件库</a>
                     <a href="#upload" class="text-white/80 hover:text-white transition-colors text-sm">上传</a>
-                    <button onclick="syncFiles()" class="text-white/80 hover:text-white transition-colors text-sm flex items-center">
-                        <i class="fa fa-refresh mr-1"></i>同步
-                    </button>
                 </div>
             </div>
         </div>
@@ -530,21 +519,6 @@ async function handleStaticFile(filename: string): Promise<Response> {
             }
         }
 
-        async function syncFiles() {
-            try {
-                const response = await fetch('/api/sync', { method: 'POST' });
-                const data = await response.json();
-                if (data.ok) {
-                    showToast('同步成功: ' + data.count + ' 个文件', 'success');
-                    loadFiles();
-                } else {
-                    showToast('同步失败: ' + data.message, 'error');
-                }
-            } catch (error) {
-                showToast('同步失败，请稍后重试', 'error');
-            }
-        }
-
         function showToast(message, type = 'info') {
             const toast = document.createElement('div');
             toast.className = 'fixed top-20 right-6 px-4 py-3 rounded-lg shadow-lg z-50 ' +
@@ -576,61 +550,15 @@ async function handleStaticFile(filename: string): Promise<Response> {
   });
 }
 
-async function handleGetFiles(kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleGetFiles(githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
-    if (kv) {
-      try {
-        const cachedData = await kv.get(KV_FILE_LIST_KEY, 'json');
-        if (cachedData) {
-          return new Response(JSON.stringify({ ok: true, files: cachedData, source: 'cache' }), {
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-      } catch (kvError) {
-        console.warn('KV 读取失败，降级到 GitHub API:', kvError);
-      }
-    }
-    
     const files = await fetchFilesFromGitHub(githubToken, githubOwner, githubRepo);
     
-    if (kv) {
-      try {
-        await kv.put(KV_FILE_LIST_KEY, JSON.stringify(files));
-        await kv.put(KV_LAST_SYNC_KEY, new Date().toISOString());
-      } catch (kvError) {
-        console.warn('KV 写入失败:', kvError);
-      }
-    }
-    
-    return new Response(JSON.stringify({ ok: true, files, source: 'github' }), {
+    return new Response(JSON.stringify({ ok: true, files }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
     return new Response(JSON.stringify({ ok: false, message: '获取文件列表失败', error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-async function handleSyncFiles(kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
-  try {
-    const files = await fetchFilesFromGitHub(githubToken, githubOwner, githubRepo);
-    
-    if (kv) {
-      try {
-        await kv.put(KV_FILE_LIST_KEY, JSON.stringify(files));
-        await kv.put(KV_LAST_SYNC_KEY, new Date().toISOString());
-      } catch (kvError) {
-        console.warn('KV 写入失败:', kvError);
-      }
-    }
-    
-    return new Response(JSON.stringify({ ok: true, count: files.length, message: '同步成功', kv_enabled: !!kv }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: '同步失败', error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -683,7 +611,7 @@ async function fetchFilesFromGitHub(githubToken: string, githubOwner: string, gi
   return allFiles;
 }
 
-async function handleDeleteFile(filename: string, category: string, kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleDeleteFile(filename: string, category: string, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
     if (!filename) {
       return new Response(JSON.stringify({ ok: false, message: '缺少文件名参数' }), {
@@ -745,14 +673,6 @@ async function handleDeleteFile(filename: string, category: string, kv: KVNamesp
       });
     }
     
-    if (kv) {
-      try {
-        await updateKVCache(kv, key);
-      } catch (kvError) {
-        console.warn('KV 更新失败:', kvError);
-      }
-    }
-    
     return new Response(JSON.stringify({ ok: true, message: '删除成功', file: filename }), {
       headers: { 'Content-Type': 'application/json' }
     });
@@ -764,7 +684,7 @@ async function handleDeleteFile(filename: string, category: string, kv: KVNamesp
   }
 }
 
-async function handleUpload(request: Request, kv: KVNamespace | undefined, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
+async function handleUpload(request: Request, githubToken: string, githubOwner: string, githubRepo: string): Promise<Response> {
   try {
     const contentType = request.headers.get('content-type');
     if (!contentType || !contentType.includes('multipart/form-data')) {
@@ -828,14 +748,6 @@ async function handleUpload(request: Request, kv: KVNamespace | undefined, githu
       });
     }
     
-    if (kv) {
-      try {
-        await updateKVCacheWithNewFile(kv, key, safeFilename, folder, fileCategory, fileSize);
-      } catch (kvError) {
-        console.warn('KV 更新失败:', kvError);
-      }
-    }
-    
     return new Response(JSON.stringify({
       ok: true,
       message: '上传成功',
@@ -853,40 +765,6 @@ async function handleUpload(request: Request, kv: KVNamespace | undefined, githu
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
-  }
-}
-
-async function updateKVCache(kv: KVNamespace, deletedKey: string): Promise<void> {
-  const cachedData = await kv.get<FileMetadata[]>(KV_FILE_LIST_KEY, 'json');
-  if (cachedData) {
-    const updatedFiles = cachedData.filter(file => file.path !== deletedKey);
-    await kv.put(KV_FILE_LIST_KEY, JSON.stringify(updatedFiles));
-  }
-}
-
-async function updateKVCacheWithNewFile(
-  kv: KVNamespace,
-  key: string,
-  filename: string,
-  folder: string,
-  fileCategory: { folder: string; type: string; icon: string },
-  fileSize: number
-): Promise<void> {
-  const cachedData = await kv.get<FileMetadata[]>(KV_FILE_LIST_KEY, 'json');
-  if (cachedData) {
-    const newFile: FileMetadata = {
-      name: filename,
-      filename: filename,
-      path: key,
-      folder: folder,
-      type: fileCategory.type,
-      icon: fileCategory.icon,
-      size: fileSize,
-      last_modified: new Date().toISOString(),
-      downloadUrl: `/download/${key}`,
-    };
-    cachedData.push(newFile);
-    await kv.put(KV_FILE_LIST_KEY, JSON.stringify(cachedData));
   }
 }
 
