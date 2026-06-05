@@ -308,18 +308,34 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     }
     const content = btoa(binary);
 
+    // 检查文件是否已存在
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+    let sha: string | undefined;
+    
+    const checkResp = await fetch(url, {
+      headers: getGitHubHeaders(token)
+    });
+    if (checkResp.ok) {
+      const existingFile = await checkResp.json();
+      sha = existingFile.sha;
+    }
+
+    const uploadBody: any = {
+      message: `Upload: ${filename}`,
+      content,
+      branch: 'main'
+    };
+    if (sha) {
+      uploadBody.sha = sha;
+    }
+
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
         ...getGitHubHeaders(token),
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        message: `Upload: ${filename}`,
-        content,
-        branch: 'main'
-      })
+      body: JSON.stringify(uploadBody)
     });
 
     if (!response.ok) {
