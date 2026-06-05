@@ -102,15 +102,24 @@ function handleHome(): Response {
 
 async function handleGetFiles(token: string, owner: string, repo: string): Promise<Response> {
   if (!token) {
-    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
+    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN（使用 wrangler secret put GITHUB_TOKEN）', files: [], count: 0 }, 500);
   }
 
   try {
     const files = await fetchGitHubFiles(token, owner, repo);
+    if (files.length === 0) {
+      return jsonResponse({ 
+        ok: true, 
+        files: [], 
+        count: 0, 
+        message: '未找到文件，请检查 GitHub 仓库是否有 files 目录',
+        debug: { owner, repo }
+      });
+    }
     return jsonResponse({ ok: true, files, count: files.length });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return jsonResponse({ ok: false, message }, 500);
+    return jsonResponse({ ok: false, message, files: [], count: 0 }, 500);
   }
 }
 

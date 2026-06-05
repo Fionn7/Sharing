@@ -289,12 +289,17 @@
             try {
                 const response = await fetch('/api/files');
                 const data = await response.json();
-                if (data.ok && data.files) {
+                console.log('API响应:', data);
+                if (data.ok && data.files && data.files.length > 0) {
                     displayFiles(data.files);
                 } else {
-                    const errorMsg = data.message || '无法获取文件列表';
+                    let errorMsg = '暂无文件';
+                    if (!data.ok) {
+                        errorMsg = data.message || '获取文件列表失败';
+                    } else if (data.files && data.files.length === 0) {
+                        errorMsg = data.message || '文件库为空';
+                    }
                     fileList.innerHTML = `<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">${errorMsg}</div></div>`;
-                    console.log('API响应:', data);
                 }
             } catch (error) {
                 console.error('加载文件失败:', error);
