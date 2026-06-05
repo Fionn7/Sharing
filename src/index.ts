@@ -441,67 +441,18 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const release = await getOrCreateRelease(token, owner, repo);
     console.log(`Using release: ${release.tag} (ID: ${release.id})`);
     
-    // 获取当前所有 assets 并记录
+    // 首先记录当前所有 assets 用于调试
     const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
       headers: getGitHubHeaders(token)
     });
     
-    let assets: any[] = [];
     if (assetsResp.ok) {
-      assets = await assetsResp.json();
-      console.log(`Current assets (${assets.length}):`);
+      const assets = await assetsResp.json();
+      console.log(`=== Current assets (${assets.length}) ===`);
       assets.forEach(a => console.log(`  - [${a.id}] ${a.name}`));
     }
-    
-    // 查找同名文件 - 使用更宽松的匹配方式
-    let existingAssetId: number | undefined;
-    let existingAssetName: string | undefined;
-    
-    for (const asset of assets) {
-      // 直接比较文件名
-      if (asset.name === filename) {
-        existingAssetId = asset.id;
-        existingAssetName = asset.name;
-        console.log(`Found exact match: ${existingAssetName} (ID: ${existingAssetId})`);
-        break;
-      }
-      // 尝试不区分大小写比较
-      if (asset.name.toLowerCase() === filename.toLowerCase()) {
-        existingAssetId = asset.id;
-        existingAssetName = asset.name;
-        console.log(`Found case-insensitive match: ${existingAssetName} (ID: ${existingAssetId})`);
-        break;
-      }
-    }
 
-    // 如果已存在，先删除
-    if (existingAssetId) {
-      console.log(`Deleting existing asset: ${existingAssetName} (ID: ${existingAssetId})`);
-      const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${existingAssetId}`, {
-        method: 'DELETE',
-        headers: getGitHubHeaders(token)
-      });
-      console.log(`Delete response: ${deleteResp.status}`);
-      
-      // 等待更长时间确保删除完成
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // 验证是否真的删除了
-      const verifyResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
-        headers: getGitHubHeaders(token)
-      });
-      if (verifyResp.ok) {
-        const verifyAssets = await verifyResp.json();
-        const stillExists = verifyAssets.find((a: any) => a.id === existingAssetId);
-        if (stillExists) {
-          console.warn('Asset still exists after deletion!');
-        } else {
-          console.log('Asset successfully deleted');
-        }
-      }
-    }
-
-    // 尝试上传
+    // 尝试上传 - tryUploadFile 内部会处理删除和重试逻辑
     let uploadResult: any = null;
     let finalFilename = filename;
     
@@ -562,13 +513,55 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     // 直接从 file 读取二进制
     const binaryContent = await file.arrayBuffer();
     
+    // 首先检查文件是否存在
+    const checkResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
+      headers: getGitHubHeaders(token)
+    });
+    
+    let existingAsset: any = null;
+    if (checkResp.ok) {
+      const assets = await checkResp.json();
+      existingAsset = assets.find((a: any) => a.name === filename);
+      if (existingAsset) {
+        console.log(`File "${filename}" already exists (ID: ${existingAsset.id})`);
+      }
+    }
+    
+    // 如果文件存在，先删除
+    if (existingAsset) {
+      console.log(`Deleting existing file before upload: ${existingAsset.name} (ID: ${existingAsset.id})`);
+      const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${existingAsset.id}`, {
+        method: 'DELETE',
+        headers: getGitHubHeaders(token)
+      });
+      
+      console.log(`Delete response: ${deleteResp.status}`);
+      
+      // 等待更长时间确保 GitHub 处理删除
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // 再次验证删除
+      const verifyResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
+        headers: getGitHubHeaders(token)
+      });
+      if (verifyResp.ok) {
+        const verifyAssets = await verifyResp.json();
+        const stillExists = verifyAssets.find((a: any) => a.id === existingAsset.id);
+        if (stillExists) {
+          console.warn('File still exists after deletion! Will try again...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    }
+    
     // 构建上传 URL - GitHub 推荐的方式
     const encodedFilename = encodeURIComponent(filename);
     const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodedFilename}`;
     
     console.log('Upload URL:', uploadUrl);
 
-    const response = await fetch(uploadUrl, {
+    // 第一次上传尝试
+    let response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         ...getUploadHeaders(token),
@@ -579,6 +572,49 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     });
 
     console.log('Upload response status:', response.status);
+
+    // 如果还是 422 already_exists，尝试使用稍微不同的文件名
+    if (!response.ok && response.status === 422) {
+      const errorText = await response.text();
+      console.error('Got 422, checking error:', errorText);
+      
+      if (errorText.includes('already_exists')) {
+        console.log('File still exists according to GitHub, trying with timestamp suffix...');
+        
+        // 尝试使用带时间戳的文件名
+        const timestamp = Date.now();
+        const extIndex = filename.lastIndexOf('.');
+        let newFilename = '';
+        if (extIndex > 0) {
+          const name = filename.substring(0, extIndex);
+          const ext = filename.substring(extIndex);
+          newFilename = `${name}_${timestamp}${ext}`;
+        } else {
+          newFilename = `${filename}_${timestamp}`;
+        }
+        
+        console.log(`Trying with new filename: ${newFilename}`);
+        
+        const newEncodedFilename = encodeURIComponent(newFilename);
+        const newUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${newEncodedFilename}`;
+        
+        response = await fetch(newUploadUrl, {
+          method: 'POST',
+          headers: {
+            ...getUploadHeaders(token),
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': file.size.toString()
+          },
+          body: binaryContent
+        });
+        
+        if (response.ok) {
+          const asset = await response.json();
+          console.log(`Successfully uploaded with new filename: ${newFilename}`);
+          return { success: true, asset };
+        }
+      }
+    }
 
     if (response.ok) {
       const asset = await response.json();
