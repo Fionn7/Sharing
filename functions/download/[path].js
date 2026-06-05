@@ -5,6 +5,13 @@ export async function onRequestGet(context) {
     const { path } = params;
     const key = `files/${path}`;
     
+    if (key.includes('..') || !key.startsWith('files/')) {
+      return new Response(JSON.stringify({ ok: false, message: '非法路径' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
     console.log('下载文件:', key);
     
     const R2_BUCKET = env.FILES_BUCKET;

@@ -18,33 +18,39 @@ export async function onRequestGet(context) {
     }
     
     const allFiles = [];
-    const list = await R2_BUCKET.list({ prefix: 'files/' });
+    let cursor = null;
     
-    for await (const obj of list.objects) {
-      const key = obj.key;
-      if (key.endsWith('/')) continue;
+    do {
+      const list = await R2_BUCKET.list({ prefix: 'files/', after: cursor });
       
-      const parts = key.split('/');
-      const filename = parts[parts.length - 1];
-      const folder = parts.slice(0, -1).join('/');
-      
-      const ext = filename.split('.').pop()?.toLowerCase() || '';
-      const fileCategory = getFileCategory(ext);
-      
-      if (category === 'all' || folder === `files/${category}` || fileCategory.type === category) {
-        allFiles.push({
-          name: filename,
-          filename: filename,
-          path: key,
-          category: folder,
-          fileType: fileCategory.type,
-          icon: fileCategory.icon,
-          size: obj.size,
-          lastModified: obj.uploaded?.toISOString() || '',
-          downloadUrl: `/download/${key}`,
-        });
+      for (const obj of list.objects) {
+        const key = obj.key;
+        if (key.endsWith('/')) continue;
+        
+        const parts = key.split('/');
+        const filename = parts[parts.length - 1];
+        const folder = parts.slice(0, -1).join('/');
+        
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const fileCategory = getFileCategory(ext);
+        
+        if (category === 'all' || folder === `files/${category}` || fileCategory.type === category) {
+          allFiles.push({
+            name: filename,
+            filename: filename,
+            path: key,
+            category: folder,
+            fileType: fileCategory.type,
+            icon: fileCategory.icon,
+            size: obj.size,
+            lastModified: obj.uploaded?.toISOString() || '',
+            downloadUrl: `/download/${key}`,
+          });
+        }
       }
-    }
+      
+      cursor = list.cursor;
+    } while (cursor);
     
     return new Response(JSON.stringify({ ok: true, files: allFiles }), {
       headers: { 'Content-Type': 'application/json' }

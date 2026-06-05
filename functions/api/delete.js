@@ -31,8 +31,15 @@ export async function onRequestPost(context) {
       });
     }
     
-    const safeFolder = folder || 'files/others';
-    const key = `${safeFolder}/${filename}`;
+    const safeFolder = (folder || 'others').replace(/\.\./g, '').replace(/^\//, '');
+    const key = `files/${safeFolder}/${filename}`;
+    
+    if (key.includes('..') || !key.startsWith('files/')) {
+      return new Response(JSON.stringify({ ok: false, message: '非法路径' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     
     console.log('删除文件:', key);
     
