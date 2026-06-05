@@ -12,6 +12,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
 };
 
+function getGitHubHeaders(token: string): Record<string, string> {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json',
+    'User-Agent': 'Sharing-App/1.0'
+  };
+}
+
 function jsonResponse(data: any, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -67,10 +75,7 @@ export default {
         try {
           // 测试 token 有效性 - 获取当前用户
           const userResp = await fetch('https://api.github.com/user', {
-            headers: {
-              'Authorization': `Bearer ${githubToken}`,
-              'Accept': 'application/vnd.github+json'
-            }
+            headers: getGitHubHeaders(githubToken)
           });
           tokenInfo.userStatus = `${userResp.status} ${userResp.statusText}`;
           if (userResp.ok) {
@@ -80,20 +85,14 @@ export default {
           
           // 测试仓库访问
           const repoResp = await fetch(`https://api.github.com/repos/${githubOwner}/${githubRepo}`, {
-            headers: {
-              'Authorization': `Bearer ${githubToken}`,
-              'Accept': 'application/vnd.github+json'
-            }
+            headers: getGitHubHeaders(githubToken)
           });
           tokenInfo.repoStatus = `${repoResp.status} ${repoResp.statusText}`;
           
           // 测试 files 目录
           const testUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files`;
           const testResp = await fetch(testUrl, {
-            headers: {
-              'Authorization': `Bearer ${githubToken}`,
-              'Accept': 'application/vnd.github+json'
-            }
+            headers: getGitHubHeaders(githubToken)
           });
           githubStatus = `${testResp.status} ${testResp.statusText}`;
           
@@ -148,10 +147,7 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
     // 先测试 API 是否能访问
     const testUrl = `https://api.github.com/repos/${owner}/${repo}/contents/files`;
     const testResp = await fetch(testUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
+      headers: getGitHubHeaders(token)
     });
     
     if (!testResp.ok) {
@@ -202,10 +198,7 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
 
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
+      headers: getGitHubHeaders(token)
     });
 
     if (!response.ok) {
@@ -319,8 +312,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json',
+        ...getGitHubHeaders(token),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -352,10 +344,7 @@ async function handleDelete(filename: string, folder: string, token: string, own
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
     const getResponse = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
+      headers: getGitHubHeaders(token)
     });
 
     if (!getResponse.ok) {
@@ -368,8 +357,7 @@ async function handleDelete(filename: string, folder: string, token: string, own
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json',
+        ...getGitHubHeaders(token),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -434,7 +422,8 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.raw'
+        'Accept': 'application/vnd.github.raw',
+        'User-Agent': 'Sharing-App/1.0'
       }
     });
 
