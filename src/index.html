@@ -434,37 +434,38 @@
 
         async function uploadFile(file, progressBar, progressText) {
             try {
-                // 检查文件大小 (限制 75MB 因为 base64 会增大 33%)
-                const maxSize = 75 * 1024 * 1024;
-                if (file.size > maxSize) {
-                    progressText.textContent = '过大';
-                    progressBar.classList.remove('gradient-bg');
-                    progressBar.classList.add('bg-red-500');
-                    showToast(`文件过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，最大支持 75MB`, 'error');
-                    return;
-                }
+                const isLargeFile = file.size >= 1024 * 1024; // >= 1MB 视为大文件
                 
-                progressText.textContent = '编码中...';
-                
-                // 前端 base64 编码
-                const arrayBuffer = await file.arrayBuffer();
-                const uint8Array = new Uint8Array(arrayBuffer);
-                let binary = '';
-                for (let i = 0; i < uint8Array.length; i++) {
-                    binary += String.fromCharCode(uint8Array[i]);
+                // 小文件：前端 base64 编码
+                // 大文件：直接传二进制
+                let formData;
+                if (isLargeFile) {
+                    formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('filename', file.name);
+                    formData.append('isLargeFile', 'true');
+                } else {
+                    progressText.textContent = '编码中...';
+                    const arrayBuffer = await file.arrayBuffer();
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    let binary = '';
+                    for (let i = 0; i < uint8Array.length; i++) {
+                        binary += String.fromCharCode(uint8Array[i]);
+                    }
+                    const content = btoa(binary);
+                    
+                    formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('filename', file.name);
+                    formData.append('content', content);
                 }
-                const content = btoa(binary);
                 
                 progressText.textContent = '上传中...';
                 
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('filename', file.name);
-                formData.append('content', content);
-                
                 // 带超时 fetch
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+                const timeout = isLargeFile ? 300000 : 30000; // 大文件5分钟超时，小文件30秒
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
                 
                 const response = await fetch('/api/upload', {
                     method: 'POST',
@@ -491,7 +492,7 @@
                 progressText.textContent = error.name === 'AbortError' ? '超时' : '失败';
                 progressBar.classList.remove('gradient-bg');
                 progressBar.classList.add('bg-red-500');
-                showToast(error.name === 'AbortError' ? '上传超时，请重试或使用更小的文件' : '上传失败，请稍后重试', 'error');
+                showToast(error.name === 'AbortError' ? '上传超时，请重试' : '上传失败，请稍后重试', 'error');
             }
         }
 
