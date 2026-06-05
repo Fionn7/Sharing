@@ -243,70 +243,8 @@ async function checkLocalFiles(folders) {
       }
     }
   }
-  return false;
+return false;
 }
-
-app.delete('/api/files/:name', async (req, res) => {
-  try {
-    if (!GITHUB_TOKEN) {
-      return res.status(500).json({ ok: false, message: '未配置 GITHUB_TOKEN' });
-    }
-
-    const rawName = decodeURIComponent(req.params.name || '');
-    const safeFilename = rawName.replace(/\\/g, '_').replace(/\/+/, '_');
-    // 从查询参数获取文件夹，如果没有则默认为 files/others
-    const folder = decodeURIComponent(req.query.category || 'files/others');
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${safeFilename}`;
-
-    const shaRes = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'sharing-file-backend',
-      },
-    });
-
-    const shaData = await shaRes.json().catch(() => ({}));
-    if (!shaRes.ok || !shaData?.sha) {
-      return res.status(shaRes.status || 404).json({
-        ok: false,
-        message: shaData.message || '文件不存在',
-      });
-    }
-
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'sharing-file-backend',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: `Delete file: ${safeFilename}`,
-        sha: shaData.sha,
-        branch: GITHUB_BRANCH,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        ok: false,
-        message: data.message || '删除失败',
-        details: data,
-      });
-    }
-
-    return res.json({ ok: true, message: '删除成功', file: safeFilename });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ ok: false, message: '删除失败', error: error.message });
-  }
-});
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {

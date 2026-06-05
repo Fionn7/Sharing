@@ -5,5 +5,16 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
+# 配置环境变量
 [vars]
 PORT = "3100"
+
+# R2 存储绑定配置
+[[r2_buckets]]
+binding = "FILES_BUCKET"
+bucket_name = "sharing-files"
+
+# 配置静态资源目录
+[site]
+bucket = "public"
+entry-point = "workers-site"
