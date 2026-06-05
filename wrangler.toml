@@ -1,7 +1,24 @@
 name = "sharing"
 compatibility_date = "2026-06-05"
-pages_build_output_dir = "public"
+main = "src/index.ts"
 
 [vars]
 GITHUB_OWNER = "Fionn7"
 GITHUB_REPO = "Sharing"
+
+# KV 命名空间绑定
+[[kv_namespaces]]
+binding = "FILE_METADATA"
+id = "your_kv_namespace_id_here"
+
+[env.production]
+name = "sharing-prod"
+[[kv_namespaces]]
+binding = "FILE_METADATA"
+id = "your_production_kv_namespace_id_here"
+
+[env.development]
+name = "sharing-dev"
+[[kv_namespaces]]
+binding = "FILE_METADATA"
+id = "your_development_kv_namespace_id_here"
