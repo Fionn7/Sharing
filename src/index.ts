@@ -205,43 +205,7 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
   }
 
   try {
-    // 先测试 API 是否能访问
-    const testUrl = `https://api.github.com/repos/${owner}/${repo}/contents/files`;
-    const testResp = await fetch(testUrl, {
-      headers: getGitHubHeaders(token)
-    });
-    
-    if (!testResp.ok) {
-      return jsonResponse({ 
-        ok: false, 
-        message: `GitHub API 访问失败: ${testResp.status} ${testResp.statusText}`,
-        files: [], 
-        count: 0,
-        debug: { owner, repo, testUrl, status: testResp.status }
-      }, 500);
-    }
-    
-    const testData = await testResp.json();
-    if (!Array.isArray(testData) || testData.length === 0) {
-      return jsonResponse({ 
-        ok: false, 
-        message: 'files 目录为空或不存在',
-        files: [], 
-        count: 0,
-        debug: { owner, repo, testData }
-      });
-    }
-
     const files = await fetchGitHubFiles(token, owner, repo);
-    if (files.length === 0) {
-      return jsonResponse({ 
-        ok: true, 
-        files: [], 
-        count: 0, 
-        message: '遍历完成但未找到文件',
-        debug: { owner, repo, subdirs: testData.map((d: any) => d.name) }
-      });
-    }
     return jsonResponse({ ok: true, files, count: files.length });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
