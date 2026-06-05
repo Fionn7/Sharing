@@ -516,8 +516,9 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
     return new Response(JSON.stringify({ ok: true, files, count: files.length }), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: error.message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ ok: false, message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -649,8 +650,9 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     return new Response(JSON.stringify({ ok: true, message: '上传成功', filename, folder }), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: error.message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ ok: false, message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -711,8 +713,9 @@ async function handleDelete(filename: string, folder: string, token: string, own
     return new Response(JSON.stringify({ ok: true, message: '删除成功' }), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: error.message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ ok: false, message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -785,8 +788,9 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
         'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`
       }
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: error.message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ ok: false, message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
