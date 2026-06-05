@@ -498,13 +498,19 @@ async function handleUpload(request: Request, token: string, owner: string, repo
         ok: true, 
         message: '上传成功', 
         filename: uploadResult.asset.name, 
+        originalFilename: filename,
         folder,
         isLargeFile: true,
-        downloadUrl: uploadResult.asset.browser_download_url
+        downloadUrl: uploadResult.asset.browser_download_url,
+        diagnostics: uploadResult.diagnostics
       });
     } else {
       console.error('Upload failed');
-      return jsonResponse({ ok: false, message: uploadResult.error || '上传失败，请重试' }, 500);
+      return jsonResponse({ 
+        ok: false, 
+        message: uploadResult.error || '上传失败，请重试',
+        diagnostics: uploadResult.diagnostics
+      }, 500);
     }
 
   } catch (error: unknown) {
@@ -515,8 +521,11 @@ async function handleUpload(request: Request, token: string, owner: string, repo
   }
 }
 
-async function tryUploadFile(file: File, filename: string, releaseId: number, token: string, owner: string, repo: string): Promise<{success: boolean, asset?: any, error?: string}> {
+async function tryUploadFile(file: File, filename: string, releaseId: number, token: string, owner: string, repo: string): Promise<{success: boolean, asset?: any, error?: string, diagnostics: any}> {
+  const diagnostics: any[] = [];
+  
   try {
+    diagnostics.push({ type: 'info', message: `开始上传，期望文件名: ${filename}` });
     console.log(`Trying upload with filename: ${filename}`);
     
     // 直接从 file 读取二进制
@@ -530,29 +539,35 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     let existingAsset: any = null;
     if (checkResp.ok) {
       const assets = await checkResp.json();
+      diagnostics.push({ type: 'info', message: `当前有 ${assets.length} 个文件` });
       console.log('Current assets:', assets.map((a: any) => `[${a.id}] ${a.name}`));
       
       // 只做精确匹配，避免误删其他文件
       existingAsset = assets.find((a: any) => a.name === filename);
       
       if (existingAsset) {
+        diagnostics.push({ type: 'warning', message: `找到同名文件: ${existingAsset.name} (ID: ${existingAsset.id})，将先删除` });
         console.log(`Found exact match to replace: "${existingAsset.name}" (ID: ${existingAsset.id})`);
       } else {
+        diagnostics.push({ type: 'info', message: `未找到同名文件，直接上传` });
         console.log(`No exact match found for "${filename}"`);
       }
     }
     
     // 如果文件存在，先删除
     if (existingAsset) {
+      diagnostics.push({ type: 'info', message: `正在删除旧文件...` });
       console.log(`Deleting existing file before upload: ${existingAsset.name} (ID: ${existingAsset.id})`);
       const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${existingAsset.id}`, {
         method: 'DELETE',
         headers: getGitHubHeaders(token)
       });
       
+      diagnostics.push({ type: 'info', message: `删除请求状态: ${deleteResp.status}` });
       console.log(`Delete response: ${deleteResp.status}`);
       
       // 等待更长时间确保 GitHub 处理删除
+      diagnostics.push({ type: 'info', message: `等待 4 秒让 GitHub 处理删除...` });
       console.log('Waiting 4 seconds for GitHub to process deletion...');
       await new Promise(resolve => setTimeout(resolve, 4000));
       
@@ -566,9 +581,11 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
         const assetsAfterDelete = await verifyResp.json();
         const stillExists = assetsAfterDelete.find((a: any) => a.id === existingAsset.id);
         if (stillExists) {
+          diagnostics.push({ type: 'warning', message: `文件仍存在，再等待 3 秒...` });
           console.warn('File still exists after deletion! Waiting 3 more seconds...');
           await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
+          diagnostics.push({ type: 'success', message: `旧文件已成功删除！` });
           console.log('File successfully deleted!');
         }
       }
@@ -578,6 +595,8 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     const encodedFilename = encodeURIComponent(filename);
     const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodedFilename}`;
     
+    diagnostics.push({ type: 'info', message: `上传 URL: ${uploadUrl}` });
+    diagnostics.push({ type: 'info', message: `编码后文件名: ${encodedFilename}` });
     console.log('Upload URL:', uploadUrl);
     console.log('Filename for header:', filename);
     console.log('Encoded filename:', encodedFilename);
@@ -592,6 +611,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       return '_';
     }).join('');
     
+    diagnostics.push({ type: 'info', message: `ASCII 备用文件名: ${asciiFilename}` });
     console.log('ASCII filename:', asciiFilename);
     
     // 上传尝试 - 同时在 URL 和 Content-Disposition 头里指定文件名
@@ -606,14 +626,32 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       body: binaryContent
     });
 
+    diagnostics.push({ type: 'info', message: `正在上传文件...` });
+    console.log('Uploading file...');
+    
+    // 上传尝试 - 同时在 URL 和 Content-Disposition 头里指定文件名
+    let response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        ...getUploadHeaders(token),
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': file.size.toString(),
+        'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
+      },
+      body: binaryContent
+    });
+
+    diagnostics.push({ type: 'info', message: `上传响应状态: ${response.status}` });
     console.log('Upload response status:', response.status);
 
     // 如果 422 already_exists，记录问题并返回
     if (!response.ok && response.status === 422) {
       const errorText = await response.text();
+      diagnostics.push({ type: 'error', message: `GitHub 422 错误: ${errorText}` });
       console.error('Got 422 error:', errorText);
       
       if (errorText.includes('already_exists')) {
+        diagnostics.push({ type: 'error', message: '文件已存在但找不到精确匹配，可能是 GitHub 修改了文件名' });
         console.log('File already exists but no exact match found. This might be because GitHub modified the filename.');
         console.log('Please check the current assets list and manually delete the conflicting file if needed.');
       }
@@ -621,16 +659,27 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
 
     if (response.ok) {
       const asset = await response.json();
+      diagnostics.push({ type: 'success', message: `上传成功！GitHub 保存的文件名: ${asset.name}` });
       console.log('Upload successful, asset name:', asset.name);
-      return { success: true, asset };
+      
+      // 检查文件名是否改变
+      if (asset.name !== filename) {
+        diagnostics.push({ type: 'warning', message: `注意！文件名被 GitHub 修改了！` });
+        diagnostics.push({ type: 'warning', message: `期望: ${filename}` });
+        diagnostics.push({ type: 'warning', message: `实际: ${asset.name}` });
+      }
+      
+      return { success: true, asset, diagnostics };
     } else {
       const errorText = await response.text();
+      diagnostics.push({ type: 'error', message: `上传失败: HTTP ${response.status} - ${errorText}` });
       console.error('Upload failed:', response.status, errorText);
-      return { success: false, error: `HTTP ${response.status}: ${errorText}` };
+      return { success: false, error: `HTTP ${response.status}: ${errorText}`, diagnostics };
     }
   } catch (error: any) {
+    diagnostics.push({ type: 'error', message: `上传异常: ${error.message}` });
     console.error('Upload attempt failed:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, diagnostics };
   }
 }
 

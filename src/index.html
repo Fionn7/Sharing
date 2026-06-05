@@ -272,7 +272,7 @@
         let selectedFiles = new Set();
         let currentDisplayedFiles = []; // 跟踪当前页显示的文件
         let recentlyUploadedFiles = []; // 跟踪最近上传的文件名
-        let diagnosticLogs = []; // 诊断日志
+        let lastDiagnostics = []; // 保存最后一次上传的诊断信息
 
         uploadArea.addEventListener('click', () => fileInput.click());
 
@@ -491,6 +491,77 @@
         // 隐藏诊断面板
         function hideDiagnosticPanel() {
             document.getElementById('diagnosticPanel').style.display = 'none';
+        }
+        
+        // 显示上传过程的诊断信息
+        function showDiagnosticPanelFromUpload(diagnostics, data) {
+            const panel = document.getElementById('diagnosticPanel');
+            const content = document.getElementById('diagnosticContent');
+            
+            let html = '';
+            
+            // 添加标题
+            html += `
+                <div class="mb-4">
+                    <div class="text-lg font-medium mb-2">
+                        <i class="fa fa-clipboard-list text-blue-400 mr-2"></i>
+                        上传诊断日志
+                    </div>
+                    <div class="text-sm text-white/60">
+                        ${data.ok ? '上传完成' : '上传失败'}
+                    </div>
+                </div>
+            `;
+            
+            // 添加诊断日志
+            diagnostics.forEach((item, index) => {
+                let icon = 'fa-info-circle';
+                let iconColor = 'text-blue-400';
+                let bgClass = 'bg-blue-500/20';
+                
+                if (item.type === 'success') {
+                    icon = 'fa-check-circle';
+                    iconColor = 'text-green-400';
+                    bgClass = 'bg-green-500/20';
+                } else if (item.type === 'warning') {
+                    icon = 'fa-exclamation-triangle';
+                    iconColor = 'text-yellow-400';
+                    bgClass = 'bg-yellow-500/20';
+                } else if (item.type === 'error') {
+                    icon = 'fa-times-circle';
+                    iconColor = 'text-red-400';
+                    bgClass = 'bg-red-500/20';
+                }
+                
+                html += `
+                    <div class="${bgClass} rounded-lg p-3 mb-2">
+                        <div class="flex items-start">
+                            <i class="fa ${icon} ${iconColor} mt-0.5 mr-3"></i>
+                            <div class="text-sm break-all">
+                                ${escapeHTML(item.message)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 添加一些指导建议
+            html += `
+                <div class="bg-white/5 rounded-lg p-4 mt-4">
+                    <div class="font-medium mb-2">
+                        <i class="fa fa-lightbulb-o text-yellow-400 mr-2"></i>
+                        说明
+                    </div>
+                    <ul class="text-white/70 text-xs space-y-1">
+                        <li>• 此日志显示了上传过程中的每一步</li>
+                        <li>• 可以看到 GitHub 最终保存的文件名</li>
+                        <li>• 如果文件名被修改，会有警告提示</li>
+                    </ul>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+            panel.style.display = 'block';
         }
 
         function displayFiles(files) {
@@ -864,6 +935,12 @@
                 clearTimeout(timeoutId);
                 
                 const data = await response.json();
+                
+                // 保存并显示诊断信息
+                if (data.diagnostics) {
+                    lastDiagnostics = data.diagnostics;
+                    showDiagnosticPanelFromUpload(lastDiagnostics, data);
+                }
                 
                 if (data.ok) {
                     progressText.textContent = '完成';
