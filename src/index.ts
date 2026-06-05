@@ -632,19 +632,6 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     diagnostics.push({ type: 'info', message: `上传响应状态: ${response.status}` });
     console.log('Upload response status:', response.status);
 
-    // 如果 422 already_exists，记录问题并返回
-    if (!response.ok && response.status === 422) {
-      const errorText = await response.text();
-      diagnostics.push({ type: 'error', message: `GitHub 422 错误: ${errorText}` });
-      console.error('Got 422 error:', errorText);
-      
-      if (errorText.includes('already_exists')) {
-        diagnostics.push({ type: 'error', message: '文件已存在但找不到精确匹配，可能是 GitHub 修改了文件名' });
-        console.log('File already exists but no exact match found. This might be because GitHub modified the filename.');
-        console.log('Please check the current assets list and manually delete the conflicting file if needed.');
-      }
-    }
-
     if (response.ok) {
       const asset = await response.json();
       diagnostics.push({ type: 'success', message: `上传成功！GitHub 保存的文件名: ${asset.name}` });
@@ -659,10 +646,116 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       
       return { success: true, asset, diagnostics };
     } else {
-      const errorText = await response.text();
-      diagnostics.push({ type: 'error', message: `上传失败: HTTP ${response.status} - ${errorText}` });
-      console.error('Upload failed:', response.status, errorText);
-      return { success: false, error: `HTTP ${response.status}: ${errorText}`, diagnostics };
+      const responseClone = response.clone();
+      const errorText = await responseClone.text();
+      diagnostics.push({ type: 'error', message: `GitHub 错误: HTTP ${response.status} - ${errorText}` });
+      console.error('Upload error:', response.status, errorText);
+      
+      // 如果是 422 already_exists，尝试找到并删除文件
+      if (response.status === 422 && errorText.includes('already_exists')) {
+        diagnostics.push({ type: 'warning', message: '文件已存在，尝试查找并删除...' });
+        
+        // 重新获取 assets 列表
+        const checkAgainResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
+          headers: getGitHubHeaders(token)
+        });
+        
+        if (checkAgainResp.ok) {
+          const assets = await checkAgainResp.json();
+          diagnostics.push({ type: 'info', message: `当前有 ${assets.length} 个文件` });
+          
+          // 尝试多种匹配方法
+          let assetToDelete = null;
+          
+          // 方法1: 精确匹配
+          assetToDelete = assets.find(a => a.name === filename);
+          
+          // 方法2: 纯 ASCII 文件名匹配
+          if (!assetToDelete) {
+            assetToDelete = assets.find(a => a.name === asciiFilename);
+          }
+          
+          // 方法3: 扩展名相同 + 文件名开头匹配
+          if (!assetToDelete) {
+            const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+            const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+            const baseNameLower = baseName.toLowerCase();
+            
+            assetToDelete = assets.find(a => {
+              const aExt = a.name.includes('.') ? a.name.split('.').pop()?.toLowerCase() : '';
+              const aBaseName = a.name.includes('.') ? a.name.substring(0, a.name.lastIndexOf('.')) : a.name;
+              const aBaseLower = aBaseName.toLowerCase();
+              
+              // 扩展名必须相同
+              if (ext && aExt && ext !== aExt) return false;
+              
+              // 检查文件名开头是否有相似性（前 3 个字符）
+              if (baseNameLower.substring(0, Math.min(3, baseNameLower.length)) === 
+                  aBaseLower.substring(0, Math.min(3, aBaseLower.length))) {
+                return true;
+              }
+              
+              return false;
+            });
+          }
+          
+          if (assetToDelete) {
+            diagnostics.push({ type: 'info', message: `找到匹配文件: ${assetToDelete.name}` });
+            diagnostics.push({ type: 'info', message: `正在删除...` });
+            
+            // 删除文件
+            const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${assetToDelete.id}`, {
+              method: 'DELETE',
+              headers: getGitHubHeaders(token)
+            });
+            
+            diagnostics.push({ type: 'info', message: `删除响应: ${deleteResp.status}` });
+            
+            if (deleteResp.ok || deleteResp.status === 204) {
+              diagnostics.push({ type: 'success', message: `删除成功，等待 5 秒后重新上传...` });
+              
+              // 等待 GitHub 处理
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              
+              // 重新上传
+              diagnostics.push({ type: 'info', message: `正在重新上传...` });
+              const retryResponse = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: {
+                  ...getUploadHeaders(token),
+                  'Content-Type': 'application/octet-stream',
+                  'Content-Length': file.size.toString(),
+                  'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
+                },
+                body: binaryContent
+              });
+              
+              diagnostics.push({ type: 'info', message: `重试响应: ${retryResponse.status}` });
+              
+              if (retryResponse.ok) {
+                const asset = await retryResponse.json();
+                diagnostics.push({ type: 'success', message: `重试成功！最终文件名: ${asset.name}` });
+                
+                if (asset.name !== filename) {
+                  diagnostics.push({ type: 'warning', message: `注意！文件名被 GitHub 修改了！` });
+                  diagnostics.push({ type: 'warning', message: `期望: ${filename}` });
+                  diagnostics.push({ type: 'warning', message: `实际: ${asset.name}` });
+                }
+                
+                return { success: true, asset, diagnostics };
+              } else {
+                const retryErrorText = await retryResponse.text();
+                diagnostics.push({ type: 'error', message: `重试失败: ${retryErrorText}` });
+                return { success: false, error: retryErrorText, diagnostics };
+              }
+            }
+          } else {
+            diagnostics.push({ type: 'error', message: '找不到可以删除的文件，请手动检查文件库' });
+          }
+        }
+      }
+      
+      return { success: false, error: errorText, diagnostics };
     }
   } catch (error: any) {
     diagnostics.push({ type: 'error', message: `上传异常: ${error.message}` });
