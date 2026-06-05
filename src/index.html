@@ -354,6 +354,7 @@
         let allFilesData = [];
         let searchQuery = '';
         let selectedFiles = new Set();
+        let currentDisplayedFiles = []; // 跟踪当前页显示的文件
 
         function displayFiles(files) {
             allFilesData = files;
@@ -391,6 +392,8 @@
         }
 
         function renderFileList(files) {
+            currentDisplayedFiles = files; // 保存当前显示的文件列表
+            
             if (files.length === 0) {
                 fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">暂无文件</div></div>';
                 updateBulkActions();
@@ -458,6 +461,7 @@
         function updateBulkActions() {
             const selectedCount = selectedFiles.size;
             const hasSelected = selectedCount > 0;
+            const hasFiles = currentDisplayedFiles.length > 0;
             
             // 更新选中数量显示
             const selectedCountEl = document.getElementById('selectedCount');
@@ -469,16 +473,36 @@
             const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
             const deselectAllBtn = document.getElementById('deselectAllBtn');
             
-            [bulkDownloadBtn, bulkDeleteBtn, deselectAllBtn].forEach(btn => {
+            // 批量下载/删除只在有选中时可用
+            [bulkDownloadBtn, bulkDeleteBtn].forEach(btn => {
                 btn.disabled = !hasSelected;
             });
+            
+            // 全选/取消全选按钮始终可用（只要有文件）
+            deselectAllBtn.disabled = !hasFiles;
+            
+            // 根据选中状态切换按钮文本
+            if (hasSelected) {
+                deselectAllBtn.textContent = '取消全选';
+            } else {
+                deselectAllBtn.textContent = '全选';
+            }
         }
 
         // 初始化批量操作按钮事件
         document.getElementById('bulkDownloadBtn').addEventListener('click', bulkDownload);
         document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDelete);
         document.getElementById('deselectAllBtn').addEventListener('click', () => {
-            selectedFiles.clear();
+            const hasSelected = selectedFiles.size > 0;
+            if (hasSelected) {
+                // 取消全选
+                selectedFiles.clear();
+            } else {
+                // 全选当前页所有文件
+                currentDisplayedFiles.forEach(file => {
+                    selectedFiles.add(file.path);
+                });
+            }
             filterFiles();
         });
 
