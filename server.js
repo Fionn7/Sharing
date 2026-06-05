@@ -25,9 +25,20 @@ const PORT = Number(process.env.PORT) || 3100;
 // 文件大小限制 - 50MB（Render 免费版内存和超时限制）
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-// 使用内存存储
+// 使用磁盘存储替代内存存储，减少内存占用
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const tempDir = path.join(__dirname, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      cb(null, tempDir);
+    },
+    filename: function (req, file, cb) {
+      cb(null, Date.now() + '-' + file.originalname);
+    }
+  }),
   limits: {
     fileSize: MAX_FILE_SIZE,
   },
@@ -311,13 +322,24 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     // 检查文件大小
     if (fileSize > MAX_FILE_SIZE) {
+      // 清理临时文件
+      fs.unlinkSync(req.file.path);
       return res.status(400).json({ 
         ok: false, 
         message: `文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）` 
       });
     }
 
-    const content = req.file.buffer.toString('base64');
+    console.log('正在读取文件内容...');
+    // 使用异步读取文件，避免阻塞事件循环
+    const fileContent = await fs.promises.readFile(req.file.path);
+    const content = fileContent.toString('base64');
+    
+    // 立即清理临时文件，释放磁盘空间
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.warn('删除临时文件失败:', err);
+    });
+    
     const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${safeFilename}`;
     
     console.log('正在检查文件是否已存在...');
@@ -399,6 +421,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    // 清理临时文件
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.warn('删除临时文件失败:', err);
+      });
+    }
     return res.status(500).json({ ok: false, message: '服务器异常', error: error.message });
   }
 });
