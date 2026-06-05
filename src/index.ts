@@ -465,11 +465,13 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // 正确构建上传 URL - 对文件名进行适当编码
-    // GitHub Releases API 需要正确的 URL 编码
+    // 构建上传 URL - 确保中文字符正确编码
+    // GitHub Releases API 对 UTF-8 字符有良好支持，确保正确编码
     const encodedFilename = encodeURIComponent(filename);
     const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodedFilename}`;
     console.log(`Upload URL: ${uploadUrl}`);
+    console.log(`Original filename: ${filename}`);
+    console.log(`Encoded filename: ${encodedFilename}`);
     
     // 直接从 file 读取二进制
     const binaryContent = await file.arrayBuffer();
@@ -480,7 +482,6 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       headers: {
         ...getUploadHeaders(token),
         'Content-Type': 'application/octet-stream',
-        // 对于大文件，可以添加一些额外的头信息
         'Content-Length': file.size.toString()
       },
       body: binaryContent
@@ -498,16 +499,23 @@ async function handleUpload(request: Request, token: string, owner: string, repo
         errorMessage = errorText;
       }
       
-      // 如果是文件名相关的错误，尝试简化文件名
-      if (errorMessage.includes('name') || errorMessage.includes('invalid')) {
-        console.log('Attempting with simplified filename...');
-        // 尝试只保留 ASCII 字符和扩展名
-        const simpleName = simplifyFilename(filename);
-        if (simpleName !== filename) {
-          console.log(`Trying simplified name: ${simpleName}`);
-          const simpleUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(simpleName)}`;
+      // 只在必要时才简化文件名，保留中文字符作为首选
+      if (errorMessage.includes('name') || errorMessage.includes('invalid') || errorMessage.includes('validation')) {
+        console.log('Trying alternative filename handling...');
+        // 尝试使用另一种编码方式
+        const altEncodedFilename = filename.split('').map(char => {
+          const code = char.charCodeAt(0);
+          if (code > 127) {
+            return '_'; // 替换非ASCII字符
+          }
+          return char;
+        }).join('');
+        
+        if (altEncodedFilename !== filename) {
+          console.log(`Trying alternative encoded name: ${altEncodedFilename}`);
+          const altUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(altEncodedFilename)}`;
           
-          const retryResponse = await fetch(simpleUploadUrl, {
+          const retryResponse = await fetch(altUploadUrl, {
             method: 'POST',
             headers: {
               ...getUploadHeaders(token),
@@ -519,11 +527,11 @@ async function handleUpload(request: Request, token: string, owner: string, repo
           
           if (retryResponse.ok) {
             const asset = await retryResponse.json();
-            console.log('Upload successful with simplified name, asset:', asset);
+            console.log('Upload successful with alternative name, asset:', asset);
             return jsonResponse({ 
               ok: true, 
-              message: '上传成功', 
-              filename: simpleName, 
+              message: '上传成功（文件名已简化）', 
+              filename: altEncodedFilename, 
               folder,
               isLargeFile: true,
               downloadUrl: asset.browser_download_url
@@ -599,21 +607,21 @@ function sanitizeFilename(filename: string): string {
     sanitized = ext && ext !== filename ? `unnamed_file.${ext}` : 'unnamed_file';
   }
   
-  // 限制文件名长度（GitHub Releases 有一定限制，保守一点用 100）
-  if (sanitized.length > 100) {
+  // 更宽松的文件名长度限制（GitHub实际支持更长）
+  if (sanitized.length > 200) {
     const extIndex = sanitized.lastIndexOf('.');
     if (extIndex > 0) {
       const ext = sanitized.substring(extIndex);
       const name = sanitized.substring(0, extIndex);
       // 智能截断：保留中文完整性
       let truncatedName = name;
-      let maxLength = 80 - ext.length;
+      let maxLength = 180 - ext.length;
       while (truncatedName.length > maxLength && truncatedName.length > 0) {
         truncatedName = truncatedName.substring(0, truncatedName.length - 1);
       }
       sanitized = truncatedName + ext;
     } else {
-      sanitized = sanitized.substring(0, 80);
+      sanitized = sanitized.substring(0, 180);
     }
   }
   
