@@ -127,6 +127,21 @@ export default {
         traverseLog
       });
     }
+    
+    // 上传调试端点
+    if (pathname === '/api/upload-debug' && method === 'POST') {
+      try {
+        const contentLength = request.headers.get('content-length');
+        console.log(`Upload debug: content-length=${contentLength}`);
+        return jsonResponse({ 
+          ok: true, 
+          message: 'Upload debug endpoint',
+          contentLength 
+        });
+      } catch (e) {
+        return jsonResponse({ ok: false, message: e instanceof Error ? e.message : 'error' }, 500);
+      }
+    }
 
     return new Response('404 Not Found', { status: 404, headers: corsHeaders });
   }
