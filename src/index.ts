@@ -288,7 +288,10 @@ async function handleUpload(request: Request, token: string, owner: string, repo
   }
 
   try {
+    console.log('Upload request received');
     const formData = await request.formData();
+    console.log('FormData parsed');
+    
     const file = formData.get('file') as File;
     const filename = formData.get('filename')?.toString() || file?.name || 'unknown';
     const content = formData.get('content')?.toString();
@@ -301,6 +304,8 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       return jsonResponse({ ok: false, message: '缺少文件内容' }, 400);
     }
 
+    console.log(`Uploading: ${filename}, content length: ${content.length}`);
+    
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const folder = getFolder(ext);
     const path = `${folder}/${filename}`;
@@ -315,6 +320,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     if (checkResp.ok) {
       const existingFile = await checkResp.json();
       sha = existingFile.sha;
+      console.log(`File exists, sha: ${sha}`);
     }
 
     const uploadBody: any = {
@@ -326,6 +332,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       uploadBody.sha = sha;
     }
 
+    console.log('Sending to GitHub...');
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -334,6 +341,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       },
       body: JSON.stringify(uploadBody)
     });
+    console.log(`GitHub response: ${response.status}`);
 
     if (!response.ok) {
       const data = await response.json();
@@ -343,6 +351,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     return jsonResponse({ ok: true, message: '上传成功', filename, folder });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Upload error:', message);
     return jsonResponse({ ok: false, message }, 500);
   }
 }
