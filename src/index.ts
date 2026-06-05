@@ -22,7 +22,7 @@ function getGitHubHeaders(token: string): Record<string, string> {
 
 function getUploadHeaders(token: string): Record<string, string> {
   return {
-    'Authorization': `Bearer ${token}`,
+    'Authorization': `token ${token}`,
     'User-Agent': 'Sharing-App/1.0'
   };
 }
@@ -205,138 +205,143 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
   }
 
   try {
+    console.log('Loading files from GitHub...', { owner, repo });
     const files = await fetchGitHubFiles(token, owner, repo);
+    console.log('Loaded files:', files.length);
     return jsonResponse({ ok: true, files, count: files.length });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error loading files:', error);
     return jsonResponse({ ok: false, message, files: [], count: 0 }, 500);
   }
 }
 
 async function fetchGitHubFiles(token: string, owner: string, repo: string): Promise<any[]> {
   const files: any[] = [];
-  const visitedPaths: string[] = [];
 
-  async function traverse(path: string): Promise<void> {
-    if (visitedPaths.includes(path)) return; // 防止重复遍历
-    visitedPaths.push(path);
-
-    try {
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-      const response = await fetch(url, {
-        headers: getGitHubHeaders(token)
-      });
-
-      if (!response.ok) {
-        console.error(`Failed to fetch ${path}: ${response.status}`);
-        return;
-      }
-
-      const items = await response.json();
-      
-      // 如果返回的是单个文件对象（不是数组），说明路径指向文件
-      if (!Array.isArray(items)) {
-        if (items.type === 'file') {
-          const ext = items.name.split('.').pop()?.toLowerCase() || '';
-          const category = getCategory(ext);
-          files.push({
-            name: items.name,
-            path: items.path,
-            folder: items.path.substring(0, items.path.lastIndexOf('/')),
-            size: items.size,
-            type: category.name,
-            icon: category.icon,
-            last_modified: items.updated_at || items.sha,
-            isLargeFile: false
-          });
-        }
-        return;
-      }
-
-      // 遍历目录内容
-      for (const item of items) {
-        if (item.type === 'dir') {
-          await traverse(item.path);
-        } else if (item.type === 'file') {
-          const ext = item.name.split('.').pop()?.toLowerCase() || '';
-          const category = getCategory(ext);
-          files.push({
-            name: item.name,
-            path: item.path,
-            folder: item.path.substring(0, item.path.lastIndexOf('/')),
-            size: items.size,
-            type: category.name,
-            icon: category.icon,
-            last_modified: items.updated_at || items.sha,
-            isLargeFile: false
-          });
-        }
-      }
-    } catch (e) {
-      console.error(`Error traversing ${path}:`, e);
-    }
-  }
-
-  // 尝试加载 contents/files 目录中的文件（旧版本兼容）
+  // 先从 Releases API 读取所有文件
   try {
-    await traverse('files');
-  } catch (e) {
-    console.error('Error loading contents files:', e);
-  }
-
-  // 从 Releases API 读取大文件
-  async function loadReleaseFiles(): Promise<void> {
-    try {
-      // 获取 release
-      let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+    console.log('Loading release files...');
+    // 获取 release
+    let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+      headers: getGitHubHeaders(token)
+    });
+    
+    if (!releaseResp.ok) {
+      console.log('Release "files" not found, trying latest...');
+      releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
         headers: getGitHubHeaders(token)
       });
-      
-      if (!releaseResp.ok) {
-        releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
-          headers: getGitHubHeaders(token)
-        });
-      }
-      
-      if (!releaseResp.ok) return;
-      
+    }
+    
+    if (!releaseResp.ok) {
+      console.log('No releases found');
+    } else {
       const release = await releaseResp.json();
+      console.log('Found release:', release.tag_name);
       
       // 获取 assets
       const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
         headers: getGitHubHeaders(token)
       });
       
-      if (!assetsResp.ok) return;
-      
-      const assets = await assetsResp.json();
-      
-      for (const asset of assets) {
-        // 过滤无日期文件
-        if (!asset.updated_at && !asset.created_at) continue;
+      if (assetsResp.ok) {
+        const assets = await assetsResp.json();
+        console.log('Found assets:', assets.length);
         
-        const ext = asset.name.split('.').pop()?.toLowerCase() || '';
-        const category = getCategory(ext);
-        const folder = getFolder(ext);
-        
-        files.push({
-          name: asset.name,
-          path: `release/${asset.id}`,
-          folder,
-          size: asset.size,
-          type: category.name,
-          icon: category.icon,
-          last_modified: asset.updated_at || asset.created_at,
-          isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB显示大文件标签
-          downloadUrl: asset.browser_download_url
-        });
+        for (const asset of assets) {
+          // 过滤无日期文件
+          if (!asset.updated_at && !asset.created_at) continue;
+          
+          const ext = asset.name.split('.').pop()?.toLowerCase() || '';
+          const category = getCategory(ext);
+          const folder = getFolder(ext);
+          
+          files.push({
+            name: asset.name,
+            path: `release/${asset.id}`,
+            folder,
+            size: asset.size,
+            type: category.name,
+            icon: category.icon,
+            last_modified: asset.updated_at || asset.created_at,
+            isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB显示大文件标签
+            downloadUrl: asset.browser_download_url
+          });
+        }
       }
-    } catch (e) {
-      console.error('Failed to load release files:', e);
     }
+  } catch (e) {
+    console.error('Failed to load release files:', e);
   }
 
-  await loadReleaseFiles();
+  // 再尝试从 contents/files 目录加载旧文件（兼容）
+  try {
+    console.log('Trying to load contents files...');
+    const visitedPaths: string[] = [];
+
+    async function traverse(path: string): Promise<void> {
+      if (visitedPaths.includes(path)) return;
+      visitedPaths.push(path);
+
+      try {
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+        const response = await fetch(url, {
+          headers: getGitHubHeaders(token)
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to fetch ${path}: ${response.status}`);
+          return;
+        }
+
+        const items = await response.json();
+        
+        if (!Array.isArray(items)) {
+          if (items.type === 'file') {
+            const ext = items.name.split('.').pop()?.toLowerCase() || '';
+            const category = getCategory(ext);
+            files.push({
+              name: items.name,
+              path: items.path,
+              folder: items.path.substring(0, items.path.lastIndexOf('/')),
+              size: items.size,
+              type: category.name,
+              icon: category.icon,
+              last_modified: items.updated_at || items.sha,
+              isLargeFile: false
+            });
+          }
+          return;
+        }
+
+        for (const item of items) {
+          if (item.type === 'dir') {
+            await traverse(item.path);
+          } else if (item.type === 'file') {
+            const ext = item.name.split('.').pop()?.toLowerCase() || '';
+            const category = getCategory(ext);
+            files.push({
+              name: item.name,
+              path: item.path,
+              folder: item.path.substring(0, item.path.lastIndexOf('/')),
+              size: items.size,
+              type: category.name,
+              icon: category.icon,
+              last_modified: items.updated_at || items.sha,
+              isLargeFile: false
+            });
+          }
+        }
+      } catch (e) {
+        console.error(`Error traversing ${path}:`, e);
+      }
+    }
+
+    await traverse('files');
+  } catch (e) {
+    console.error('Error loading contents files:', e);
+  }
 
   // 按修改时间倒序排列
   return files.sort((a, b) => {
