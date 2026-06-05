@@ -25,7 +25,7 @@ export default {
     const githubRepo = env.GITHUB_REPO || 'Sharing';
 
     if (pathname === '/') {
-      return handleHome(request);
+      return handleHome();
     }
 
     if (pathname === '/api/files' && method === 'GET') {
@@ -54,9 +54,15 @@ export default {
   }
 };
 
-function handleHome(request: Request): Response {
-  const html = `
-<!DOCTYPE html>
+function handleHome(): Response {
+  const html = getHtmlContent();
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html; charset=UTF-8' }
+  });
+}
+
+function getHtmlContent(): string {
+  return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -87,7 +93,6 @@ function handleHome(request: Request): Response {
     .btn-delete:hover { background: #c82333; }
     .loading { text-align: center; padding: 20px; color: #9ca3af; }
     .error { background: rgba(220, 53, 69, 0.2); border: 1px solid #dc3545; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #f87171; }
-    .success { background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #4ade80; }
     .category-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
     .category-tab { padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; color: white; cursor: pointer; transition: all 0.3s; }
     .category-tab.active { background: #4a90d9; border-color: #4a90d9; }
@@ -138,18 +143,18 @@ function handleHome(request: Request): Response {
     let allFiles = [];
     let currentCategory = 'all';
 
-    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('click', function() { fileInput.click(); });
 
-    uploadArea.addEventListener('dragover', (e) => {
+    uploadArea.addEventListener('dragover', function(e) {
       e.preventDefault();
       uploadArea.classList.add('dragover');
     });
 
-    uploadArea.addEventListener('dragleave', () => {
+    uploadArea.addEventListener('dragleave', function() {
       uploadArea.classList.remove('dragover');
     });
 
-    uploadArea.addEventListener('drop', (e) => {
+    uploadArea.addEventListener('drop', function(e) {
       e.preventDefault();
       uploadArea.classList.remove('dragover');
       if (e.dataTransfer.files.length > 0) {
@@ -157,16 +162,16 @@ function handleHome(request: Request): Response {
       }
     });
 
-    fileInput.addEventListener('change', () => {
+    fileInput.addEventListener('change', function() {
       if (fileInput.files.length > 0) {
         uploadFiles(fileInput.files);
       }
     });
 
-    categoryTabs.addEventListener('click', (e) => {
+    categoryTabs.addEventListener('click', function(e) {
       const tab = e.target.closest('.category-tab');
       if (tab) {
-        document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.category-tab').forEach(function(t) { t.classList.remove('active'); });
         tab.classList.add('active');
         currentCategory = tab.dataset.category;
         renderFiles();
@@ -189,29 +194,29 @@ function handleHome(request: Request): Response {
     }
 
     function renderFiles() {
-      const filtered = currentCategory === 'all' ? allFiles : allFiles.filter(f => f.type === currentCategory);
+      const filtered = currentCategory === 'all' ? allFiles : allFiles.filter(function(f) { return f.type === currentCategory; });
       
       if (filtered.length === 0) {
         fileList.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 20px;">暂无文件</div>';
         return;
       }
 
-      fileList.innerHTML = filtered.map(file => `
-        <div class="file-item">
-          <div class="file-icon">${file.icon || '📄'}</div>
-          <div class="file-info">
-            <div class="file-name">${escapeHtml(file.name)}</div>
-            <div class="file-size">${formatSize(file.size)} · ${file.type}</div>
-          </div>
-          <div class="file-actions">
-            <button class="btn btn-download" onclick="downloadFile('${escapeHtml(file.name)}', '${escapeHtml(file.folder)}')">下载</button>
-          </div>
-        </div>
-      `).join('');
+      fileList.innerHTML = filtered.map(function(file) {
+        return '<div class="file-item">' +
+          '<div class="file-icon">' + (file.icon || '📄') + '</div>' +
+          '<div class="file-info">' +
+            '<div class="file-name">' + escapeHtml(file.name) + '</div>' +
+            '<div class="file-size">' + formatSize(file.size) + ' · ' + file.type + '</div>' +
+          '</div>' +
+          '<div class="file-actions">' +
+            '<button class="btn btn-download" onclick="downloadFile(\'' + escapeHtml(file.name) + '\', \'' + escapeHtml(file.folder) + '\')">下载</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
     }
 
     function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function formatSize(bytes) {
@@ -236,15 +241,14 @@ function handleHome(request: Request): Response {
       uploadProgress.style.display = 'block';
       uploadProgress.innerHTML = '';
 
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const progressId = 'progress-' + Date.now() + '-' + Math.random();
-        uploadProgress.innerHTML += `
-          <div class="progress-item">
-            <span>${escapeHtml(file.name)}</span>
-            <div class="progress-bar"><div class="progress-fill" id="${progressId}"></div></div>
-            <span class="upload-status" id="status-${progressId}">0%</span>
-          </div>
-        `;
+        uploadProgress.innerHTML += '<div class="progress-item">' +
+          '<span>' + escapeHtml(file.name) + '</span>' +
+          '<div class="progress-bar"><div class="progress-fill" id="' + progressId + '"></div></div>' +
+          '<span class="upload-status" id="status-' + progressId + '">0%</span>' +
+        '</div>';
 
         const formData = new FormData();
         formData.append('file', file);
@@ -273,12 +277,7 @@ function handleHome(request: Request): Response {
     loadFiles();
   </script>
 </body>
-</html>
-    `;
-
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=UTF-8' }
-  });
+</html>`;
 }
 
 async function handleGetFiles(token: string, owner: string, repo: string): Promise<Response> {
@@ -303,9 +302,9 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
 }
 
 async function fetchGitHubFiles(token: string, owner: string, repo: string): Promise<any[]> {
-  const files = [];
+  const files: any[] = [];
   
-  async function traverse(path: string) {
+  async function traverse(path: string): Promise<void> {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
       headers: {
@@ -383,7 +382,6 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     }
 
     const ext = filename.toString().split('.').pop()?.toLowerCase() || '';
-    const category = getCategory(ext);
     const folder = getFolder(ext);
     const path = `${folder}/${filename}`;
 
