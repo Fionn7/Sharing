@@ -68,7 +68,86 @@ function handleHome(): Response {
 }
 
 function getHtmlContent(): string {
-  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Sharing - 课题组内部文件共享平台</title>\n    <script src="https://cdn.tailwindcss.com"></script>\n    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">\n    <script>\n        tailwind.config = {\n            theme: {\n                extend: {\n                    colors: {\n                        primary: \"#0ea5e9\",\n                        secondary: \"#8b5cf6\",\n                    },\n                    fontFamily: {\n                        inter: [\"Inter\", \"system-ui\", \"sans-serif\", \"Arial\", \"Helvetica\"],\n                    },\n                }\n            }\n        }\n    <\/script>\n    <style type=\"text/tailwindcss\">\n        @layer utilities {\n            .content-auto {\n                content-visibility: auto;\n            }\n            .glass {\n                background: rgba(255, 255, 255, 0.15);\n                backdrop-filter: blur(12px);\n                -webkit-backdrop-filter: blur(12px);\n                border: 1px solid rgba(255, 255, 255, 0.2);\n            }\n            .glass-light {\n                background: rgba(255, 255, 255, 0.25);\n                backdrop-filter: blur(8px);\n                -webkit-backdrop-filter: blur(8px);\n                border: 1px solid rgba(255, 255, 255, 0.3);\n            }\n            .gradient-text {\n                background: linear-gradient(90deg, #f8fafc);\n                -webkit-background-clip: text;\n                -webkit-text-fill-color: transparent;\n                background-clip: text;\n            }\n            .gradient-bg {\n                background: linear-gradient(135deg, #00643e27);\n            }\n            .scroll-reveal {\n                opacity: 0;\n                transform: translateY(20px);\n                transition: all 0.6s ease-out;\n            }\n            .scroll-reveal.active {\n                opacity: 1;\n                transform: translateY(0);\n            }\n        }\n        .category-btn {\n            background: rgba(255, 255, 255, 0.1);\n            color: rgba(255, 255, 255, 0.7);\n            border: 1px solid rgba(255, 255, 255, 0.2);\n        }\n        .category-btn:hover {\n            background: rgba(255, 255, 255, 0.2);\n            color: white;\n        }\n        .category-btn.active {\n            background: rgba(14, 165, 233, 0.3);\n            color: white;\n            border-color: rgba(14, 165, 233, 0.5);\n        }\n    <\/style>\n<\/head>\n<body class=\"font-inter text-white overflow-x-hidden\">\n    <div class=\"fixed inset-0 -z-10\">\n        <img src=\"https://www.nnu.edu.cn/__local/8/34/A4/3A386A880E332A4E876F05144E0_A2A61260_73305.jpg\" alt=\"南京师范大学四季风景\" class=\"w-full h-full object-cover\">\n        <div class=\"absolute inset-0 bg-slate-900/50\"><\/div>\n    <\/div>
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sharing - 课题组内部文件共享平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9',
+                        secondary: '#8b5cf6',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif', 'Arial', 'Helvetica'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .glass {
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            .glass-light {
+                background: rgba(255, 255, 255, 0.25);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            .gradient-text {
+                background: linear-gradient(90deg, #f8fafc, #cbd5e1);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, rgba(0, 100, 62, 0.15), rgba(0, 0, 0, 0.05));
+            }
+            .scroll-reveal {
+                opacity: 0;
+                transform: translateY(20px);
+                transition: all 0.6s ease-out;
+            }
+            .scroll-reveal.active {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .category-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .category-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .category-btn.active {
+            background: rgba(14, 165, 233, 0.3);
+            color: white;
+            border-color: rgba(14, 165, 233, 0.5);
+        }
+    </style>
+</head>
+<body class="font-inter text-white overflow-x-hidden">
+    <div class="fixed inset-0 -z-10">
+        <img src="https://www.nnu.edu.cn/__local/8/34/A4/3A386A880E332A4E876F05144E0_A2A61260_73305.jpg" alt="南京师范大学四季风景" class="w-full h-full object-cover">
+        <div class="absolute inset-0 bg-slate-900/50"></div>
+    </div>
 
     <nav id="navbar" class="fixed w-full z-50 transition-all duration-300 py-4">
         <div class="container mx-auto px-6">
