@@ -14,7 +14,7 @@ const corsHeaders = {
 
 function getGitHubHeaders(token: string): Record<string, string> {
   return {
-    'Authorization': `Bearer ${token}`,
+    'Authorization': `token ${token}`,
     'Accept': 'application/vnd.github+json',
     'User-Agent': 'Sharing-App/1.0'
   };
@@ -221,58 +221,68 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
     if (visitedPaths.includes(path)) return; // 防止重复遍历
     visitedPaths.push(path);
 
-    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-    const response = await fetch(url, {
-      headers: getGitHubHeaders(token)
-    });
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+      const response = await fetch(url, {
+        headers: getGitHubHeaders(token)
+      });
 
-    if (!response.ok) {
-      console.error(`Failed to fetch ${path}: ${response.status}`);
-      return;
-    }
-
-    const items = await response.json();
-    
-    // 如果返回的是单个文件对象（不是数组），说明路径指向文件
-    if (!Array.isArray(items)) {
-      if (items.type === 'file') {
-        const ext = items.name.split('.').pop()?.toLowerCase() || '';
-        const category = getCategory(ext);
-        files.push({
-          name: items.name,
-          path: items.path,
-          folder: items.path.substring(0, items.path.lastIndexOf('/')),
-          size: items.size,
-          type: category.name,
-          icon: category.icon,
-          last_modified: items.updated_at || items.sha
-        });
+      if (!response.ok) {
+        console.error(`Failed to fetch ${path}: ${response.status}`);
+        return;
       }
-      return;
-    }
 
-    // 遍历目录内容
-    for (const item of items) {
-      if (item.type === 'dir') {
-        await traverse(item.path);
-      } else if (item.type === 'file') {
-        const ext = item.name.split('.').pop()?.toLowerCase() || '';
-        const category = getCategory(ext);
-        files.push({
-          name: item.name,
-          path: item.path,
-          folder: item.path.substring(0, item.path.lastIndexOf('/')),
-          size: item.size,
-          type: category.name,
-          icon: category.icon,
-          last_modified: item.updated_at || item.sha,
-          isLargeFile: false
-        });
+      const items = await response.json();
+      
+      // 如果返回的是单个文件对象（不是数组），说明路径指向文件
+      if (!Array.isArray(items)) {
+        if (items.type === 'file') {
+          const ext = items.name.split('.').pop()?.toLowerCase() || '';
+          const category = getCategory(ext);
+          files.push({
+            name: items.name,
+            path: items.path,
+            folder: items.path.substring(0, items.path.lastIndexOf('/')),
+            size: items.size,
+            type: category.name,
+            icon: category.icon,
+            last_modified: items.updated_at || items.sha,
+            isLargeFile: false
+          });
+        }
+        return;
       }
+
+      // 遍历目录内容
+      for (const item of items) {
+        if (item.type === 'dir') {
+          await traverse(item.path);
+        } else if (item.type === 'file') {
+          const ext = item.name.split('.').pop()?.toLowerCase() || '';
+          const category = getCategory(ext);
+          files.push({
+            name: item.name,
+            path: item.path,
+            folder: item.path.substring(0, item.path.lastIndexOf('/')),
+            size: items.size,
+            type: category.name,
+            icon: category.icon,
+            last_modified: items.updated_at || items.sha,
+            isLargeFile: false
+          });
+        }
+      }
+    } catch (e) {
+      console.error(`Error traversing ${path}:`, e);
     }
   }
 
-  await traverse('files');
+  // 尝试加载 contents/files 目录中的文件（旧版本兼容）
+  try {
+    await traverse('files');
+  } catch (e) {
+    console.error('Error loading contents files:', e);
+  }
 
   // 从 Releases API 读取大文件
   async function loadReleaseFiles(): Promise<void> {
