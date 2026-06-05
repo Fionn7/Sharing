@@ -614,18 +614,6 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     diagnostics.push({ type: 'info', message: `ASCII 备用文件名: ${asciiFilename}` });
     console.log('ASCII filename:', asciiFilename);
     
-    // 上传尝试 - 同时在 URL 和 Content-Disposition 头里指定文件名
-    let response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        ...getUploadHeaders(token),
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': file.size.toString(),
-        'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
-      },
-      body: binaryContent
-    });
-
     diagnostics.push({ type: 'info', message: `正在上传文件...` });
     console.log('Uploading file...');
     
