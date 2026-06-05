@@ -258,10 +258,10 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
         
         if (assetsResp.ok) {
           const assets = await assetsResp.json();
-          console.log('Found assets:', assets.length);
+          console.log('=== Found', assets.length, 'assets ===');
           
           for (const asset of assets) {
-            console.log('  -', asset.name, '(size:', asset.size, ')');
+            console.log(`Asset: [${asset.id}] "${asset.name}" (size: ${asset.size}, created: ${asset.created_at}, updated: ${asset.updated_at})`);
             
             // 过滤无日期文件
             if (!asset.updated_at && !asset.created_at) {
@@ -285,6 +285,8 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
               downloadUrl: asset.browser_download_url
             });
           }
+          
+          console.log('=== Added', files.length, 'files from release ===');
         } else {
           console.log('Failed to fetch assets:', assetsResp.status);
         }
@@ -414,21 +416,22 @@ async function handleUpload(request: Request, token: string, owner: string, repo
   }
 
   try {
-    console.log('Upload request received');
+    console.log('=== Upload request received ===');
     const formData = await request.formData();
     console.log('FormData parsed');
     
     const file = formData.get('file') as File;
-    let filename = formData.get('filename')?.toString() || file?.name || 'unknown';
+    const originalFilename = formData.get('filename')?.toString() || file?.name || 'unknown';
 
     if (!file) {
       return jsonResponse({ ok: false, message: '请选择文件' }, 400);
     }
 
-    console.log(`Uploading: ${filename}, size: ${file.size}`);
+    console.log(`Original filename: ${originalFilename}`);
+    console.log(`File size: ${file.size}`);
     
-    // 清理文件名 - GitHub 对文件名有一定限制
-    filename = sanitizeFilename(filename);
+    // 清理文件名，但最大限度保留中文字符
+    let filename = sanitizeFilename(originalFilename);
     console.log(`Sanitized filename: ${filename}`);
     
     const ext = filename.split('.').pop()?.toLowerCase() || '';
@@ -438,45 +441,133 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const release = await getOrCreateRelease(token, owner, repo);
     console.log(`Using release: ${release.tag} (ID: ${release.id})`);
     
-    // 检查是否已存在同名 asset
+    // 获取当前所有 assets 并记录
     const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
       headers: getGitHubHeaders(token)
     });
     
-    let existingAssetId: number | undefined;
+    let assets: any[] = [];
     if (assetsResp.ok) {
-      const assets = await assetsResp.json();
-      const existing = assets.find((a: any) => a.name === filename);
-      if (existing) {
-        existingAssetId = existing.id;
-        console.log(`Found existing asset: ${existingAssetId}`);
+      assets = await assetsResp.json();
+      console.log(`Current assets (${assets.length}):`);
+      assets.forEach(a => console.log(`  - [${a.id}] ${a.name}`));
+    }
+    
+    // 查找同名文件 - 使用更宽松的匹配方式
+    let existingAssetId: number | undefined;
+    let existingAssetName: string | undefined;
+    
+    for (const asset of assets) {
+      // 直接比较文件名
+      if (asset.name === filename) {
+        existingAssetId = asset.id;
+        existingAssetName = asset.name;
+        console.log(`Found exact match: ${existingAssetName} (ID: ${existingAssetId})`);
+        break;
+      }
+      // 尝试不区分大小写比较
+      if (asset.name.toLowerCase() === filename.toLowerCase()) {
+        existingAssetId = asset.id;
+        existingAssetName = asset.name;
+        console.log(`Found case-insensitive match: ${existingAssetName} (ID: ${existingAssetId})`);
+        break;
       }
     }
 
     // 如果已存在，先删除
     if (existingAssetId) {
-      console.log(`Deleting existing asset: ${existingAssetId}`);
+      console.log(`Deleting existing asset: ${existingAssetName} (ID: ${existingAssetId})`);
       const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${existingAssetId}`, {
         method: 'DELETE',
         headers: getGitHubHeaders(token)
       });
       console.log(`Delete response: ${deleteResp.status}`);
-      // 等待一小段时间确保删除完成
-      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 等待更长时间确保删除完成
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 验证是否真的删除了
+      const verifyResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
+        headers: getGitHubHeaders(token)
+      });
+      if (verifyResp.ok) {
+        const verifyAssets = await verifyResp.json();
+        const stillExists = verifyAssets.find((a: any) => a.id === existingAssetId);
+        if (stillExists) {
+          console.warn('Asset still exists after deletion!');
+        } else {
+          console.log('Asset successfully deleted');
+        }
+      }
     }
 
-    // 构建上传 URL - 确保中文字符正确编码
-    // GitHub Releases API 对 UTF-8 字符有良好支持，确保正确编码
-    const encodedFilename = encodeURIComponent(filename);
-    const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodedFilename}`;
-    console.log(`Upload URL: ${uploadUrl}`);
-    console.log(`Original filename: ${filename}`);
-    console.log(`Encoded filename: ${encodedFilename}`);
+    // 尝试上传
+    let uploadResult: any = null;
+    let finalFilename = filename;
+    
+    // 第一次尝试 - 使用原始文件名
+    console.log('=== Attempt 1: Original filename ===');
+    uploadResult = await tryUploadFile(file, filename, release.id, token, owner, repo);
+    
+    // 如果失败，尝试使用原始文件名（可能我们之前的 sanitize 有问题）
+    if (!uploadResult.success && originalFilename !== filename) {
+      console.log('=== Attempt 2: Original filename without sanitization ===');
+      const rawFilename = sanitizeFilenameLight(originalFilename);
+      uploadResult = await tryUploadFile(file, rawFilename, release.id, token, owner, repo);
+      if (uploadResult.success) {
+        finalFilename = rawFilename;
+      }
+    }
+    
+    // 如果还是失败，尝试简化文件名
+    if (!uploadResult.success) {
+      console.log('=== Attempt 3: Simplified filename ===');
+      const simpleFilename = simplifyFilenameSafe(originalFilename);
+      uploadResult = await tryUploadFile(file, simpleFilename, release.id, token, owner, repo);
+      if (uploadResult.success) {
+        finalFilename = simpleFilename;
+      }
+    }
+
+    if (uploadResult.success) {
+      console.log('Upload successful!');
+      console.log('Final filename:', finalFilename);
+      console.log('Asset:', uploadResult.asset);
+      
+      return jsonResponse({ 
+        ok: true, 
+        message: finalFilename !== filename ? '上传成功（文件名已调整）' : '上传成功', 
+        filename: finalFilename, 
+        folder,
+        isLargeFile: true,
+        downloadUrl: uploadResult.asset.browser_download_url
+      });
+    } else {
+      console.error('All upload attempts failed');
+      return jsonResponse({ ok: false, message: uploadResult.error || '上传失败，请重试' }, 500);
+    }
+
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Upload error:', message);
+    console.error('Stack trace:', error instanceof Error ? error.stack : '');
+    return jsonResponse({ ok: false, message }, 500);
+  }
+}
+
+async function tryUploadFile(file: File, filename: string, releaseId: number, token: string, owner: string, repo: string): Promise<{success: boolean, asset?: any, error?: string}> {
+  try {
+    console.log(`Trying upload with filename: ${filename}`);
     
     // 直接从 file 读取二进制
     const binaryContent = await file.arrayBuffer();
+    
+    // 构建上传 URL - GitHub 推荐的方式
+    const encodedFilename = encodeURIComponent(filename);
+    const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodedFilename}`;
+    
+    console.log('Upload URL:', uploadUrl);
 
-    console.log('Sending to GitHub releases...');
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
@@ -486,79 +577,63 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       },
       body: binaryContent
     });
-    console.log(`GitHub response: ${response.status}`);
 
-    if (!response.ok) {
+    console.log('Upload response status:', response.status);
+
+    if (response.ok) {
+      const asset = await response.json();
+      return { success: true, asset };
+    } else {
       const errorText = await response.text();
-      console.error('GitHub error response:', errorText);
-      let errorMessage = '上传失败';
-      try {
-        const data = JSON.parse(errorText);
-        errorMessage = data.message || errorText;
-      } catch {
-        errorMessage = errorText;
-      }
-      
-      // 只在必要时才简化文件名，保留中文字符作为首选
-      if (errorMessage.includes('name') || errorMessage.includes('invalid') || errorMessage.includes('validation')) {
-        console.log('Trying alternative filename handling...');
-        // 尝试使用另一种编码方式
-        const altEncodedFilename = filename.split('').map(char => {
-          const code = char.charCodeAt(0);
-          if (code > 127) {
-            return '_'; // 替换非ASCII字符
-          }
-          return char;
-        }).join('');
-        
-        if (altEncodedFilename !== filename) {
-          console.log(`Trying alternative encoded name: ${altEncodedFilename}`);
-          const altUploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(altEncodedFilename)}`;
-          
-          const retryResponse = await fetch(altUploadUrl, {
-            method: 'POST',
-            headers: {
-              ...getUploadHeaders(token),
-              'Content-Type': 'application/octet-stream',
-              'Content-Length': file.size.toString()
-            },
-            body: binaryContent
-          });
-          
-          if (retryResponse.ok) {
-            const asset = await retryResponse.json();
-            console.log('Upload successful with alternative name, asset:', asset);
-            return jsonResponse({ 
-              ok: true, 
-              message: '上传成功（文件名已简化）', 
-              filename: altEncodedFilename, 
-              folder,
-              isLargeFile: true,
-              downloadUrl: asset.browser_download_url
-            });
-          }
-        }
-      }
-      
-      return jsonResponse({ ok: false, message: errorMessage }, response.status);
+      console.error('Upload failed:', response.status, errorText);
+      return { success: false, error: `HTTP ${response.status}: ${errorText}` };
     }
-
-    const asset = await response.json();
-    console.log('Upload successful, asset:', asset);
-    
-    return jsonResponse({ 
-      ok: true, 
-      message: '上传成功', 
-      filename, 
-      folder,
-      isLargeFile: true,
-      downloadUrl: asset.browser_download_url
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Upload error:', message);
-    return jsonResponse({ ok: false, message }, 500);
+  } catch (error: any) {
+    console.error('Upload attempt failed:', error);
+    return { success: false, error: error.message };
   }
+}
+
+// 轻量级文件名清理
+function sanitizeFilenameLight(filename: string): string {
+  // 只移除真正危险的字符
+  let sanitized = filename.replace(/[\x00-\x1F\x7F]/g, '');
+  sanitized = sanitized.replace(/[\/\\?%*:|"<>]/g, '_');
+  sanitized = sanitized.trim();
+  
+  if (!sanitized || sanitized === '.' || sanitized === '..') {
+    const ext = filename.split('.').pop();
+    sanitized = ext && ext !== filename ? `unnamed_file.${ext}` : 'unnamed_file';
+  }
+  
+  return sanitized;
+}
+
+// 安全的文件名简化
+function simplifyFilenameSafe(filename: string): string {
+  const ext = filename.split('.').pop();
+  const name = filename.substring(0, filename.length - (ext ? ext.length + 1 : 0));
+  
+  // 保留字母、数字、下划线、连字符，其他替换为下划线
+  let simpleName = name.split('').map((char, index) => {
+    const code = char.charCodeAt(0);
+    if (code >= 0x4E00 && code <= 0x9FFF) { // 中文
+      return char;
+    } else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || char === '_' || char === '-') {
+      return char;
+    }
+    return '_';
+  }).join('');
+  
+  // 确保不为空
+  if (!simpleName.replace(/_/g, '')) {
+    simpleName = 'file';
+  }
+  
+  // 限制长度
+  simpleName = simpleName.substring(0, 50);
+  
+  return ext ? `${simpleName}.${ext}` : simpleName;
 }
 
 // 简化文件名，只保留安全字符
