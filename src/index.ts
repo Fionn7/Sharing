@@ -137,14 +137,44 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
   }
 
   try {
+    // 先测试 API 是否能访问
+    const testUrl = `https://api.github.com/repos/${owner}/${repo}/contents/files`;
+    const testResp = await fetch(testUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+    
+    if (!testResp.ok) {
+      return jsonResponse({ 
+        ok: false, 
+        message: `GitHub API 访问失败: ${testResp.status} ${testResp.statusText}`,
+        files: [], 
+        count: 0,
+        debug: { owner, repo, testUrl, status: testResp.status }
+      }, 500);
+    }
+    
+    const testData = await testResp.json();
+    if (!Array.isArray(testData) || testData.length === 0) {
+      return jsonResponse({ 
+        ok: false, 
+        message: 'files 目录为空或不存在',
+        files: [], 
+        count: 0,
+        debug: { owner, repo, testData }
+      });
+    }
+
     const files = await fetchGitHubFiles(token, owner, repo);
     if (files.length === 0) {
       return jsonResponse({ 
         ok: true, 
         files: [], 
         count: 0, 
-        message: '未找到文件，请检查 GitHub 仓库是否有 files 目录',
-        debug: { owner, repo }
+        message: '遍历完成但未找到文件',
+        debug: { owner, repo, subdirs: testData.map((d: any) => d.name) }
       });
     }
     return jsonResponse({ ok: true, files, count: files.length });
