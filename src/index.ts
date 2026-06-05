@@ -65,217 +65,434 @@ function getHtmlContent(): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sharing - 文件共享平台</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: white; }
-    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-    header { text-align: center; margin-bottom: 40px; padding-top: 40px; }
-    h1 { font-size: 2.5rem; margin-bottom: 10px; }
-    .upload-area { border: 2px dashed #4a90d9; border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 30px; }
-    .upload-area:hover { border-color: #6ab0ff; background: rgba(74, 144, 217, 0.1); }
-    .upload-area.dragover { border-color: #28a745; background: rgba(40, 167, 69, 0.1); }
-    #file-input { display: none; }
-    .file-list { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 20px; }
-    .file-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-    .file-item:last-child { border-bottom: none; }
-    .file-icon { font-size: 24px; margin-right: 12px; }
-    .file-info { flex: 1; }
-    .file-name { font-weight: 500; }
-    .file-size { font-size: 12px; color: #9ca3af; }
-    .file-actions { display: flex; gap: 8px; }
-    .btn { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; }
-    .btn-download { background: #4a90d9; color: white; }
-    .btn-delete { background: #dc3545; color: white; }
-    .btn-download:hover { background: #3d7bc6; }
-    .btn-delete:hover { background: #c82333; }
-    .loading { text-align: center; padding: 20px; color: #9ca3af; }
-    .error { background: rgba(220, 53, 69, 0.2); border: 1px solid #dc3545; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #f87171; }
-    .category-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-    .category-tab { padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; color: white; cursor: pointer; transition: all 0.3s; }
-    .category-tab.active { background: #4a90d9; border-color: #4a90d9; }
-    .upload-progress { margin-top: 20px; }
-    .progress-item { display: flex; align-items: center; margin-bottom: 10px; }
-    .progress-bar { flex: 1; height: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; overflow: hidden; }
-    .progress-fill { height: 100%; background: #4a90d9; transition: width 0.3s; }
-    .upload-status { margin-left: 12px; font-size: 12px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sharing - 课题组内部文件共享平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9',
+                        secondary: '#8b5cf6',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif', 'Arial', 'Helvetica'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .glass {
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            .glass-light {
+                background: rgba(255, 255, 255, 0.25);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            .gradient-text {
+            background: linear-gradient(90deg, #f8fafc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, #00643e27);
+            }
+            .scroll-reveal {
+                opacity: 0;
+                transform: translateY(20px);
+                transition: all 0.6s ease-out;
+            }
+            .scroll-reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+            }
+        }
+        .category-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .category-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .category-btn.active {
+            background: rgba(14, 165, 233, 0.3);
+            color: white;
+            border-color: rgba(14, 165, 233, 0.5);
+        }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <header>
-      <h1>📁 Sharing</h1>
-      <p>课题组内部文件共享平台</p>
-    </header>
-
-    <div id="upload-area" class="upload-area">
-      <div style="font-size: 48px; margin-bottom: 16px;">📤</div>
-      <p style="font-size: 1.2rem; margin-bottom: 8px;">拖拽文件到这里上传</p>
-      <p style="color: #9ca3af;">或点击选择文件</p>
-      <input type="file" id="file-input" multiple>
+<body class="font-inter text-white overflow-x-hidden">
+    <div class="fixed inset-0 -z-10">
+        <img src="https://www.nnu.edu.cn/__local/8/34/A4/3A386A880E332A4E876F05144E0_A2A61260_73305.jpg" alt="南京师范大学四季风景" class="w-full h-full object-cover">
+        <div class="absolute inset-0 bg-slate-900/50"></div>
     </div>
 
-    <div id="upload-progress" class="upload-progress" style="display: none;"></div>
+    <nav id="navbar" class="fixed w-full z-50 transition-all duration-300 py-4">
+        <div class="container mx-auto px-6">
+            <div class="glass rounded-full px-6 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <span class="text-2xl font-bold gradient-text">Sharing</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#files" class="text-white/80 hover:text-white transition-colors text-sm">文件库</a>
+                    <a href="#upload" class="text-white/80 hover:text-white transition-colors text-sm">上传</a>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-    <div class="category-tabs" id="category-tabs">
-      <button class="category-tab active" data-category="all">全部</button>
-      <button class="category-tab" data-category="PDF文档">📄 PDF</button>
-      <button class="category-tab" data-category="Word文档">📝 Word</button>
-      <button class="category-tab" data-category="图片">🖼️ 图片</button>
-      <button class="category-tab" data-category="视频">🎬 视频</button>
-      <button class="category-tab" data-category="其他">📁 其他</button>
-    </div>
+    <section id="upload" class="min-h-screen flex items-center pt-24">
+        <div class="container mx-auto px-6">
+            <div class="max-w-3xl mx-auto text-center">
+                <div class="glass rounded-3xl p-10 md:p-16 scroll-reveal">
+                    <div class="w-20 h-20 mx-auto mb-8 bg-white/10 rounded-full flex items-center justify-center">
+                        <i class="fa fa-cloud-upload text-3xl text-white/70"></i>
+                    </div>
+                    <h1 class="text-[clamp(2rem,4vw,3rem)] font-bold mb-4">拖拽文件到这里上传</h1>
+                    <p class="text-white/70 text-lg mb-6">文件将自动分类存储到共享库</p>
+                    <div id="upload-area" class="glass-light rounded-2xl p-12 hover:bg-white/30 transition-colors cursor-pointer group">
+                        <div class="w-16 h-16 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                            <i class="fa fa-cloud-upload text-3xl text-white/70 group-hover:text-primary transition-colors"></i>
+                        </div>
+                        <p class="text-white/80">释放文件以上传</p>
+                    </div>
+                    <input type="file" id="file-input" class="hidden" multiple>
+                    <div id="upload-list" class="mt-8 space-y-3 hidden"></div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <div class="file-list" id="file-list">
-      <div class="loading">加载文件列表中...</div>
-    </div>
-  </div>
+    <section id="files" class="py-20">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-12 scroll-reveal">
+                <div class="glass inline-block rounded-full px-6 py-2 text-sm">
+                    <h2 class="text-xl font-bold">文件库</h2>
+                </div>
+            </div>
+            <div class="max-w-4xl mx-auto scroll-reveal">
+                <div class="glass rounded-2xl overflow-hidden">
+                    <div class="p-6">
+                        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+                            <button class="category-btn active px-4 py-2 rounded-lg text-sm transition-colors" data-category="all">全部</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PDF文档">📄 PDF</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Word文档">📝 Word</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Excel表格">📊 Excel</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PPT演示">📽️ PPT</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="图片">🖼️ 图片</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="视频">🎬 视频</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="音频">🎵 音频</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="压缩包">📦 压缩包</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="代码">💻 代码</button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="其他文件">📁 其他</button>
+                        </div>
+                        <div class="space-y-2" id="fileList">
+                            <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
+                                <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fa fa-file-pdf-o text-red-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm">加载中...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-  <script>
-    const uploadArea = document.getElementById('upload-area');
-    const fileInput = document.getElementById('file-input');
-    const fileList = document.getElementById('file-list');
-    const categoryTabs = document.getElementById('category-tabs');
-    const uploadProgress = document.getElementById('upload-progress');
+    <footer class="py-12">
+        <div class="container mx-auto px-6">
+            <div class="glass rounded-2xl p-8">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="flex items-center space-x-2 mb-4 md:mb-0">
+                        <span class="text-2xl font-bold gradient-text">Sharing</span>
+                    </div>
+                    <div class="text-white/70 text-sm text-center md:text-right">
+                        <p>© 2026 Sharing. 仅供内部使用</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
 
-    let allFiles = [];
-    let currentCategory = 'all';
+    <script>
+        window.addEventListener('scroll', function() {
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('py-2');
+                navbar.classList.remove('py-4');
+            } else {
+                navbar.classList.add('py-4');
+                navbar.classList.remove('py-2');
+            }
+        });
 
-    uploadArea.addEventListener('click', function() { fileInput.click(); });
+        const scrollRevealElements = document.querySelectorAll('.scroll-reveal');
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, { threshold: 0.1 });
 
-    uploadArea.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      uploadArea.classList.add('dragover');
-    });
+        scrollRevealElements.forEach(function(el) { observer.observe(el); });
 
-    uploadArea.addEventListener('dragleave', function() {
-      uploadArea.classList.remove('dragover');
-    });
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadList = document.getElementById('upload-list');
+        const fileList = document.getElementById('fileList');
 
-    uploadArea.addEventListener('drop', function(e) {
-      e.preventDefault();
-      uploadArea.classList.remove('dragover');
-      if (e.dataTransfer.files.length > 0) {
-        uploadFiles(e.dataTransfer.files);
-      }
-    });
+        uploadArea.addEventListener('click', function() { fileInput.click(); });
 
-    fileInput.addEventListener('change', function() {
-      if (fileInput.files.length > 0) {
-        uploadFiles(fileInput.files);
-      }
-    });
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadArea.classList.add('border-primary');
+            uploadArea.classList.add('bg-primary/10');
+        });
 
-    categoryTabs.addEventListener('click', function(e) {
-      const tab = e.target.closest('.category-tab');
-      if (tab) {
-        document.querySelectorAll('.category-tab').forEach(function(t) { t.classList.remove('active'); });
-        tab.classList.add('active');
-        currentCategory = tab.dataset.category;
-        renderFiles();
-      }
-    });
+        uploadArea.addEventListener('dragleave', function() {
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/10');
+        });
 
-    async function loadFiles() {
-      try {
-        const response = await fetch('/api/files');
-        const data = await response.json();
-        if (data.ok && data.files) {
-          allFiles = data.files;
-          renderFiles();
-        } else {
-          fileList.innerHTML = '<div class="error">' + (data.message || '无法加载文件列表') + '</div>';
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/10');
+            if (e.dataTransfer.files.length > 0) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                handleFiles(fileInput.files);
+            }
+        });
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
         }
-      } catch (error) {
-        fileList.innerHTML = '<div class="error">加载失败: ' + error.message + '</div>';
-      }
-    }
 
-    function renderFiles() {
-      const filtered = currentCategory === 'all' ? allFiles : allFiles.filter(function(f) { return f.type === currentCategory; });
-      
-      if (filtered.length === 0) {
-        fileList.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 20px;">暂无文件</div>';
-        return;
-      }
-
-      fileList.innerHTML = filtered.map(function(file) {
-        return '<div class="file-item">' +
-          '<div class="file-icon">' + (file.icon || '📄') + '</div>' +
-          '<div class="file-info">' +
-            '<div class="file-name">' + escapeHtml(file.name) + '</div>' +
-            '<div class="file-size">' + formatSize(file.size) + ' · ' + file.type + '</div>' +
-          '</div>' +
-          '<div class="file-actions">' +
-            '<button class="btn btn-download" onclick="downloadFile(\'' + escapeHtml(file.name) + '\', \'' + escapeHtml(file.folder) + '\')">下载</button>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
-    function formatSize(bytes) {
-      if (!bytes) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    function downloadFile(filename, folder) {
-      const url = '/download/' + folder + '/' + encodeURIComponent(filename);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    async function uploadFiles(files) {
-      uploadProgress.style.display = 'block';
-      uploadProgress.innerHTML = '';
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const progressId = 'progress-' + Date.now() + '-' + Math.random();
-        uploadProgress.innerHTML += '<div class="progress-item">' +
-          '<span>' + escapeHtml(file.name) + '</span>' +
-          '<div class="progress-bar"><div class="progress-fill" id="' + progressId + '"></div></div>' +
-          '<span class="upload-status" id="status-' + progressId + '">0%</span>' +
-        '</div>';
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('filename', file.name);
-
-        try {
-          const response = await fetch('/api/upload', { method: 'POST', body: formData });
-          const data = await response.json();
-          
-          if (data.ok) {
-            document.getElementById(progressId).style.width = '100%';
-            document.getElementById('status-' + progressId).textContent = '✓ 完成';
-            document.getElementById('status-' + progressId).style.color = '#22c55e';
-            await loadFiles();
-          } else {
-            document.getElementById('status-' + progressId).textContent = '✗ 失败';
-            document.getElementById('status-' + progressId).style.color = '#dc3545';
-          }
-        } catch (error) {
-          document.getElementById('status-' + progressId).textContent = '✗ ' + error.message;
-          document.getElementById('status-' + progressId).style.color = '#dc3545';
+        function formatFileSize(bytes) {
+            if (bytes === 0 || !bytes) return '--';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
-      }
-    }
 
-    loadFiles();
-  </script>
+        function getFileIconClass(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['pdf'].includes(ext)) return 'text-red-400';
+            if (['doc', 'docx'].includes(ext)) return 'text-blue-400';
+            if (['xls', 'xlsx'].includes(ext)) return 'text-green-400';
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'text-purple-400';
+            if (['mp4', 'avi', 'mov', 'wmv'].includes(ext)) return 'text-yellow-400';
+            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'text-orange-400';
+            if (['mp3', 'wav', 'flac'].includes(ext)) return 'text-pink-400';
+            return 'text-gray-400';
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['pdf'].includes(ext)) return 'fa-file-pdf-o';
+            if (['doc', 'docx'].includes(ext)) return 'fa-file-word-o';
+            if (['xls', 'xlsx'].includes(ext)) return 'fa-file-excel-o';
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'fa-file-image-o';
+            if (['mp4', 'avi', 'mov', 'wmv'].includes(ext)) return 'fa-file-video-o';
+            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'fa-file-archive-o';
+            if (['mp3', 'wav', 'flac'].includes(ext)) return 'fa-file-audio-o';
+            return 'fa-file-o';
+        }
+
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const data = await response.json();
+                if (data.ok && data.files) {
+                    displayFiles(data.files);
+                } else {
+                    const errorMsg = data.message || '无法获取文件列表';
+                    fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">' + errorMsg + '</div></div>';
+                }
+            } catch (error) {
+                fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">加载失败，请检查网络连接</div></div>';
+            }
+        }
+
+        let currentCategory = 'all';
+        let allFilesData = [];
+
+        function displayFiles(files) {
+            allFilesData = files;
+            filterFilesByCategory();
+        }
+
+        function filterFilesByCategory() {
+            const filteredFiles = currentCategory === 'all' ? allFilesData : allFilesData.filter(function(f) { return f.type === currentCategory; });
+            
+            if (filteredFiles.length === 0) {
+                fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">暂无文件</div></div>';
+                return;
+            }
+
+            fileList.innerHTML = filteredFiles.map(function(file) {
+                const iconClass = getFileIconClass(file.name);
+                const icon = getFileIcon(file.name);
+                return '<div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group" onclick="downloadFile(\'' + escapeHTML(file.name) + '\', \'' + escapeHTML(file.folder) + '\')">' +
+                    '<div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">' +
+                    '<i class="fa ' + icon + ' ' + iconClass + '"></i></div>' +
+                    '<div class="flex-1"><div class="text-sm">' + escapeHTML(file.name) + '</div></div>' +
+                    '<div class="text-xs text-white/50">' + formatFileSize(file.size) + '</div>' +
+                    '<div class="text-xs text-white/50 ml-4">' + (file.last_modified ? new Date(file.last_modified).toLocaleDateString('zh-CN') : '--') + '</div>' +
+                    '<button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2" onclick="event.stopPropagation(); deleteFile(\'' + escapeHTML(file.name) + '\', \'' + escapeHTML(file.folder) + '\')">' +
+                    '<i class="fa fa-trash"></i></button></div>';
+            }).join('');
+        }
+
+        document.getElementById('categoryFilters').addEventListener('click', function(e) {
+            const btn = e.target.closest('.category-btn');
+            if (btn) {
+                document.querySelectorAll('.category-btn').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                currentCategory = btn.dataset.category;
+                filterFilesByCategory();
+            }
+        });
+
+        function downloadFile(filename, folder) {
+            const url = '/download/' + folder + '/' + encodeURIComponent(filename);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('开始下载: ' + filename, 'success');
+        }
+
+        async function deleteFile(filename, folder) {
+            if (!confirm('确定要删除文件 "' + filename + '" 吗？')) return;
+            try {
+                const response = await fetch('/api/files/' + encodeURIComponent(filename) + '?category=' + encodeURIComponent(folder), { method: 'DELETE' });
+                const data = await response.json();
+                if (data.ok) {
+                    showToast('删除成功: ' + filename, 'success');
+                    loadFiles();
+                } else {
+                    showToast('删除失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showToast('删除失败，请稍后重试', 'error');
+            }
+        }
+
+        function handleFiles(files) {
+            uploadList.classList.remove('hidden');
+            Array.from(files).forEach(function(file) {
+                const uploadItem = document.createElement('div');
+                uploadItem.className = 'glass flex items-center p-4 rounded-lg';
+                uploadItem.innerHTML = '<div class="w-10 h-10 bg-blue-100/20 rounded-lg flex items-center justify-center mr-4">' +
+                    '<i class="fa ' + getFileIcon(file.name) + ' ' + getFileIconClass(file.name) + '"></i></div>' +
+                    '<div class="flex-1"><div class="font-medium text-sm">' + escapeHTML(file.name) + '</div>' +
+                    '<div class="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-2">' +
+                    '<div class="progress-bar h-full gradient-bg w-0 transition-all duration-300"></div></div></div>' +
+                    '<div class="text-sm text-white/70 ml-4 progress-text">0%</div>';
+                uploadList.appendChild(uploadItem);
+                
+                const progressBar = uploadItem.querySelector('.progress-bar');
+                const progressText = uploadItem.querySelector('.progress-text');
+                let progress = 0;
+                
+                const interval = setInterval(function() {
+                    progress += Math.random() * 15;
+                    if (progress >= 100) {
+                        progress = 100;
+                        clearInterval(interval);
+                        progressText.textContent = '上传中...';
+                        uploadFile(file, progressBar, progressText);
+                    } else {
+                        progressText.textContent = Math.round(progress) + '%';
+                    }
+                    progressBar.style.width = progress + '%';
+                }, 200);
+            });
+        }
+
+        async function uploadFile(file, progressBar, progressText) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('filename', file.name);
+                
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                if (data.ok) {
+                    progressText.textContent = '完成';
+                    showToast('上传成功: ' + file.name, 'success');
+                    loadFiles();
+                } else {
+                    progressText.textContent = '失败';
+                    progressBar.classList.remove('gradient-bg');
+                    progressBar.classList.add('bg-red-500');
+                    showToast('上传失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                progressText.textContent = '失败';
+                progressBar.classList.remove('gradient-bg');
+                progressBar.classList.add('bg-red-500');
+                showToast('上传失败，请稍后重试', 'error');
+            }
+        }
+
+        function showToast(message, type) {
+            if (!type) type = 'info';
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-20 right-6 px-4 py-3 rounded-lg shadow-lg z-50 ' +
+                (type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(function() { toast.remove(); }, 300);
+            }, 3000);
+        }
+
+        document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', loadFiles);
+    </script>
 </body>
 </html>`;
 }
@@ -348,17 +565,29 @@ function getCategory(ext: string): { name: string; icon: string } {
     docx: { name: 'Word文档', icon: '📝' },
     xls: { name: 'Excel表格', icon: '📊' },
     xlsx: { name: 'Excel表格', icon: '📊' },
+    ppt: { name: 'PPT演示', icon: '📽️' },
+    pptx: { name: 'PPT演示', icon: '📽️' },
+    txt: { name: '文本文件', icon: '📃' },
     jpg: { name: '图片', icon: '🖼️' },
     jpeg: { name: '图片', icon: '🖼️' },
     png: { name: '图片', icon: '🖼️' },
     gif: { name: '图片', icon: '🖼️' },
+    bmp: { name: '图片', icon: '🖼️' },
+    svg: { name: '图片', icon: '🖼️' },
     mp4: { name: '视频', icon: '🎬' },
+    avi: { name: '视频', icon: '🎬' },
     mov: { name: '视频', icon: '🎬' },
     mp3: { name: '音频', icon: '🎵' },
+    wav: { name: '音频', icon: '🎵' },
     zip: { name: '压缩包', icon: '📦' },
     rar: { name: '压缩包', icon: '📦' },
+    '7z': { name: '压缩包', icon: '📦' },
+    js: { name: '代码', icon: '💻' },
+    html: { name: '代码', icon: '💻' },
+    css: { name: '代码', icon: '💻' },
+    json: { name: '代码', icon: '💻' },
   };
-  return categories[ext] || { name: '其他', icon: '📁' };
+  return categories[ext] || { name: '其他文件', icon: '📁' };
 }
 
 async function handleUpload(request: Request, token: string, owner: string, repo: string): Promise<Response> {
@@ -431,14 +660,16 @@ function getFolder(ext: string): string {
     xlsx: 'files/documents',
     ppt: 'files/documents',
     pptx: 'files/documents',
+    txt: 'files/documents',
     jpg: 'files/images',
     jpeg: 'files/images',
     png: 'files/images',
     gif: 'files/images',
+    bmp: 'files/images',
     svg: 'files/images',
     mp4: 'files/videos',
-    mov: 'files/videos',
     avi: 'files/videos',
+    mov: 'files/videos',
     mp3: 'files/audio',
     wav: 'files/audio',
     zip: 'files/archives',
