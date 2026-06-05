@@ -6,6 +6,19 @@ interface Env {
   GITHUB_REPO: string;
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
+};
+
+function jsonResponse(data: any, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -13,13 +26,7 @@ export default {
     const method = request.method;
 
     if (method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
-        }
-      });
+      return new Response(null, { headers: corsHeaders });
     }
 
     const githubToken = env.GITHUB_TOKEN;
@@ -50,43 +57,35 @@ export default {
     }
 
     if (pathname === '/api/debug') {
-      return new Response(JSON.stringify({
+      return jsonResponse({
         ok: true,
         tokenConfigured: !!githubToken,
         owner: githubOwner,
         repo: githubRepo
-      }), { headers: { 'Content-Type': 'application/json' } });
+      });
     }
 
-    return new Response('404 Not Found', { status: 404 });
+    return new Response('404 Not Found', { status: 404, headers: corsHeaders });
   }
 };
 
 function handleHome(): Response {
   return new Response(htmlContent, {
-    headers: { 'Content-Type': 'text/html; charset=UTF-8' }
+    headers: { 'Content-Type': 'text/html; charset=UTF-8', ...corsHeaders }
   });
 }
 
 async function handleGetFiles(token: string, owner: string, repo: string): Promise<Response> {
   if (!token) {
-    return new Response(JSON.stringify({ ok: false, message: '请配置 GITHUB_TOKEN' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
   }
 
   try {
     const files = await fetchGitHubFiles(token, owner, repo);
-    return new Response(JSON.stringify({ ok: true, files, count: files.length }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: true, files, count: files.length });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ ok: false, message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message }, 500);
   }
 }
 
@@ -164,10 +163,7 @@ function getCategory(ext: string): { name: string; icon: string } {
 
 async function handleUpload(request: Request, token: string, owner: string, repo: string): Promise<Response> {
   if (!token) {
-    return new Response(JSON.stringify({ ok: false, message: '请配置 GITHUB_TOKEN' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
   }
 
   try {
@@ -176,10 +172,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const filename = formData.get('filename') || (file as File).name;
 
     if (!file) {
-      return new Response(JSON.stringify({ ok: false, message: '请选择文件' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ ok: false, message: '请选择文件' }, 400);
     }
 
     const ext = filename.toString().split('.').pop()?.toLowerCase() || '';
@@ -206,30 +199,19 @@ async function handleUpload(request: Request, token: string, owner: string, repo
 
     if (!response.ok) {
       const data = await response.json();
-      return new Response(JSON.stringify({ ok: false, message: data.message || '上传失败' }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ ok: false, message: data.message || '上传失败' }, response.status);
     }
 
-    return new Response(JSON.stringify({ ok: true, message: '上传成功', filename, folder }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: true, message: '上传成功', filename, folder });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ ok: false, message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message }, 500);
   }
 }
 
 async function handleDelete(filename: string, folder: string, token: string, owner: string, repo: string): Promise<Response> {
   if (!token) {
-    return new Response(JSON.stringify({ ok: false, message: '请配置 GITHUB_TOKEN' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
   }
 
   try {
@@ -244,10 +226,7 @@ async function handleDelete(filename: string, folder: string, token: string, own
     });
 
     if (!getResponse.ok) {
-      return new Response(JSON.stringify({ ok: false, message: '文件不存在' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ ok: false, message: '文件不存在' }, 404);
     }
 
     const fileInfo = await getResponse.json();
@@ -269,21 +248,13 @@ async function handleDelete(filename: string, folder: string, token: string, own
 
     if (!response.ok) {
       const data = await response.json();
-      return new Response(JSON.stringify({ ok: false, message: data.message || '删除失败' }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ ok: false, message: data.message || '删除失败' }, response.status);
     }
 
-    return new Response(JSON.stringify({ ok: true, message: '删除成功' }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: true, message: '删除成功' });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ ok: false, message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message }, 500);
   }
 }
 
@@ -321,10 +292,7 @@ function getFolder(ext: string): string {
 
 async function handleDownload(path: string, token: string, owner: string, repo: string): Promise<Response> {
   if (!token) {
-    return new Response(JSON.stringify({ ok: false, message: '请配置 GITHUB_TOKEN' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
   }
 
   try {
@@ -338,10 +306,7 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
     });
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ ok: false, message: '文件不存在' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ ok: false, message: '文件不存在' }, 404);
     }
 
     const filename = fullPath.split('/').pop() || 'download';
@@ -350,14 +315,12 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
     return new Response(response.body, {
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        ...corsHeaders
       }
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ ok: false, message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ ok: false, message }, 500);
   }
 }
