@@ -301,14 +301,74 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
           size: item.size,
           type: category.name,
           icon: category.icon,
-          last_modified: item.updated_at || item.sha
+          last_modified: item.updated_at || item.sha,
+          isLargeFile: false
         });
       }
     }
   }
 
   await traverse('files');
-  return files;
+
+  // 从 Releases API 读取大文件
+  async function loadReleaseFiles(): Promise<void> {
+    try {
+      // 获取 release
+      let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (!releaseResp.ok) {
+        releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
+          headers: getGitHubHeaders(token)
+        });
+      }
+      
+      if (!releaseResp.ok) return;
+      
+      const release = await releaseResp.json();
+      
+      // 获取 assets
+      const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (!assetsResp.ok) return;
+      
+      const assets = await assetsResp.json();
+      
+      for (const asset of assets) {
+        const ext = asset.name.split('.').pop()?.toLowerCase() || '';
+        const category = getCategory(ext);
+        const folder = getFolder(ext);
+        
+        files.push({
+          name: asset.name,
+          path: `release/${asset.id}`, // 特殊路径标识
+          folder,
+          size: asset.size,
+          type: category.name,
+          icon: category.icon,
+          last_modified: asset.updated_at,
+          isLargeFile: true,
+          downloadUrl: asset.browser_download_url
+        });
+      }
+    } catch (e) {
+      console.error('Failed to load release files:', e);
+    }
+  }
+
+  await loadReleaseFiles();
+
+  // 按修改时间倒序排列
+  return files.sort((a, b) => {
+    const dateA = a.last_modified;
+    const dateB = b.last_modified;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateB.localeCompare(dateA);
+  });
 }
 
 function getCategory(ext: string): { name: string; icon: string } {
@@ -483,13 +543,28 @@ async function handleDelete(filename: string, folder: string, token: string, own
   }
 
   try {
+    // 检查是否是大文件（特殊路径格式 release/{id}）
+    if (filename.startsWith('release/')) {
+      const assetId = filename.substring('release/'.length);
+      
+      const deleteResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${assetId}`, {
+        method: 'DELETE',
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (!deleteResp.ok) {
+        const data = await deleteResp.json();
+        return jsonResponse({ ok: false, message: data.message || '删除失败' }, deleteResp.status);
+      }
+      
+      return jsonResponse({ ok: true, message: '删除成功' });
+    }
+
+    // 小文件：从 Contents API 删除
     const path = `${folder}/${filename}`;
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
-    const getResponse = await fetch(url, {
-      headers: getGitHubHeaders(token)
-    });
-
+    const getResponse = await fetch(url, { headers: getGitHubHeaders(token) });
     if (!getResponse.ok) {
       return jsonResponse({ ok: false, message: '文件不存在' }, 404);
     }
@@ -560,7 +635,41 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
   }
 
   try {
-    // path 已经包含完整路径，如 files/documents/report.docx
+    // 检查是否是大文件（特殊路径格式 release/{id}）
+    if (path.startsWith('release/')) {
+      const assetId = path.substring('release/'.length);
+      
+      // 先找到对应的 asset 信息
+      let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (!releaseResp.ok) {
+        releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
+          headers: getGitHubHeaders(token)
+        });
+      }
+      
+      if (releaseResp.ok) {
+        const release = await releaseResp.json();
+        const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
+          headers: getGitHubHeaders(token)
+        });
+        
+        if (assetsResp.ok) {
+          const assets = await assetsResp.json();
+          const asset = assets.find((a: any) => a.id.toString() === assetId);
+          
+          if (asset) {
+            // 重定向到 GitHub 下载链接
+            return Response.redirect(asset.browser_download_url, 302);
+          }
+        }
+      }
+      return jsonResponse({ ok: false, message: '文件未找到' }, 404);
+    }
+
+    // 小文件：从 Contents API 读取
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
       headers: {

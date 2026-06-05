@@ -328,17 +328,18 @@
             fileList.innerHTML = filteredFiles.map(file => {
                 const iconClass = getFileIconClass(file.name);
                 const icon = getFileIcon(file.name);
+                const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
                 return `
-                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group" onclick="downloadFile('${escapeHTML(file.name)}', '${escapeHTML(file.folder)}')">
+                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group" onclick="downloadFile('${escapeHTML(file.path)}')">
                         <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
                         <div class="flex-1">
-                            <div class="text-sm">${escapeHTML(file.name)}</div>
+                            <div class="text-sm">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1">大文件</span>' : ''}</div>
                         </div>
                         <div class="text-xs text-white/50">${formatFileSize(file.size)}</div>
-                        <div class="text-xs text-white/50 ml-4">${file.last_modified ? new Date(file.last_modified).toLocaleDateString('zh-CN') : '--'}</div>
-                        <button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2" onclick="event.stopPropagation(); deleteFile('${escapeHTML(file.name)}', '${escapeHTML(file.folder)}')">
+                        <div class="text-xs text-white/50 ml-4">${dateStr}</div>
+                        <button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2" onclick="event.stopPropagation(); deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')">
                             <i class="fa fa-trash"></i>
                         </button>
                     </div>
@@ -357,32 +358,45 @@
             }
         });
 
-        function downloadFile(filename, folder) {
-            // 通过 Worker 代理下载，确保路径正确
-            const url = `/download/${folder}/${encodeURIComponent(filename)}`;
+        function formatDate(dateStr) {
+            try {
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) return '--';
+                return date.toLocaleDateString('zh-CN');
+            } catch {
+                return '--';
+            }
+        }
+
+        function downloadFile(path) {
+            // 通过 Worker 代理下载，直接传 path
+            const url = `/download/${path.startsWith('release/') ? path : path.replace(/^\//, '')}`;
+            const filename = path.startsWith('release/') ? 'download' : path.split('/').pop();
             const link = document.createElement('a');
             link.href = url;
             link.download = filename;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            showToast(`开始下载: ${filename}`, 'success');
+            showToast('开始下载', 'success');
         }
 
-        async function deleteFile(filename, folder) {
-            if (!confirm(`确定要删除文件 "${filename}" 吗？`)) {
+        async function deleteFile(path, folder, name) {
+            if (!confirm(`确定要删除文件 "${name}" 吗？`)) {
                 return;
             }
 
             try {
-                const response = await fetch(`/api/files/${encodeURIComponent(filename)}?category=${encodeURIComponent(folder)}`, {
+                // 对于大文件，path 是 release/{id}，直接传 filename=path
+                const filenameParam = path.startsWith('release/') ? path : name;
+                const response = await fetch(`/api/files/${encodeURIComponent(filenameParam)}?category=${encodeURIComponent(folder)}`, {
                     method: 'DELETE'
                 });
                 
                 const data = await response.json();
                 
                 if (data.ok) {
-                    showToast(`删除成功: ${filename}`, 'success');
+                    showToast(`删除成功: ${name}`, 'success');
                     loadFiles();
                 } else {
                     showToast(`删除失败: ${data.message}`, 'error');
