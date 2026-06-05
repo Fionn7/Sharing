@@ -289,30 +289,21 @@ async function handleUpload(request: Request, token: string, owner: string, repo
 
   try {
     const formData = await request.formData();
-    const file = formData.get('file');
-    const filename = formData.get('filename') || (file as File).name;
+    const file = formData.get('file') as File;
+    const filename = formData.get('filename')?.toString() || file?.name || 'unknown';
+    const content = formData.get('content')?.toString();
 
     if (!file) {
       return jsonResponse({ ok: false, message: '请选择文件' }, 400);
     }
 
-    const fileSize = (file as File).size;
-    const maxSize = 25 * 1024 * 1024; // 25MB limit
-    if (fileSize > maxSize) {
-      return jsonResponse({ ok: false, message: `文件过大 (${(fileSize / 1024 / 1024).toFixed(1)}MB)，最大支持 25MB` }, 400);
+    if (!content) {
+      return jsonResponse({ ok: false, message: '缺少文件内容' }, 400);
     }
 
-    const ext = filename.toString().split('.').pop()?.toLowerCase() || '';
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
     const folder = getFolder(ext);
     const path = `${folder}/${filename}`;
-
-    const arrayBuffer = await (file as File).arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let binary = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-      binary += String.fromCharCode(uint8Array[i]);
-    }
-    const content = btoa(binary);
 
     // 检查文件是否已存在
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;

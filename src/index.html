@@ -434,9 +434,23 @@
 
         async function uploadFile(file, progressBar, progressText) {
             try {
+                progressText.textContent = '编码中...';
+                
+                // 前端 base64 编码
+                const arrayBuffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < uint8Array.length; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                }
+                const content = btoa(binary);
+                
+                progressText.textContent = '上传中...';
+                
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('filename', file.name);
+                formData.append('content', content);
                 
                 const response = await fetch('/api/upload', {
                     method: 'POST',
