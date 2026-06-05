@@ -205,10 +205,15 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
   }
 
   try {
+    console.log('=== handleGetFiles called ===');
     console.log('Loading files from GitHub...', { owner, repo });
     const files = await fetchGitHubFiles(token, owner, repo);
     console.log('Loaded files:', files.length);
-    return jsonResponse({ ok: true, files, count: files.length });
+    
+    const response = { ok: true, files, count: files.length };
+    console.log('=== Response to frontend ===', JSON.stringify(response, null, 2));
+    
+    return jsonResponse(response);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error loading files:', error);
@@ -259,9 +264,11 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
         if (assetsResp.ok) {
           const assets = await assetsResp.json();
           console.log('=== Found', assets.length, 'assets ===');
+          console.log('Raw assets:', JSON.stringify(assets, null, 2)); // 打印完整的原始数据
           
           for (const asset of assets) {
             console.log(`Asset: [${asset.id}] "${asset.name}" (size: ${asset.size}, created: ${asset.created_at}, updated: ${asset.updated_at})`);
+            console.log(`  Asset object keys:`, Object.keys(asset)); // 打印 asset 的所有字段
             
             // 过滤无日期文件
             if (!asset.updated_at && !asset.created_at) {
@@ -273,7 +280,7 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
             const category = getCategory(ext);
             const folder = getFolder(ext);
             
-            files.push({
+            const fileObj = {
               name: asset.name,
               path: `release/${asset.id}`,
               folder,
@@ -281,14 +288,20 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
               type: category.name,
               icon: category.icon,
               last_modified: asset.updated_at || asset.created_at,
-              isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB显示大文件标签
+              isLargeFile: asset.size > 10 * 1024 * 1024, // >10MB 显示大文件标签
               downloadUrl: asset.browser_download_url
-            });
+            };
+            
+            console.log(`  Adding file object:`, JSON.stringify(fileObj, null, 2));
+            files.push(fileObj);
           }
           
           console.log('=== Added', files.length, 'files from release ===');
+          console.log('=== Final files array ===', JSON.stringify(files, null, 2));
         } else {
           console.log('Failed to fetch assets:', assetsResp.status);
+          const errorText = await assetsResp.text();
+          console.log('Assets error:', errorText);
         }
       } else {
         console.log('No releases found');

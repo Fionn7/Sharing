@@ -330,10 +330,15 @@
 
         async function loadFiles() {
             try {
+                console.log('=== Frontend: Loading files ===');
                 const response = await fetch('/api/files');
                 const data = await response.json();
-                console.log('API响应:', data);
+                console.log('=== Frontend: Raw API response ===', data);
+                console.log('=== Frontend: Data type ===', typeof data);
+                console.log('=== Frontend: Files array ===', data.files);
+                
                 if (data.ok && data.files && data.files.length > 0) {
+                    console.log('=== Frontend: Displaying', data.files.length, 'files ===');
                     displayFiles(data.files);
                 } else {
                     let errorMsg = '暂无文件';
@@ -357,11 +362,13 @@
         let currentDisplayedFiles = []; // 跟踪当前页显示的文件
 
         function displayFiles(files) {
+            console.log('=== Frontend: displayFiles called with ===', files);
             allFilesData = files;
             filterFiles();
         }
 
         function filterFiles() {
+            console.log('=== Frontend: filterFiles called ===');
             let filteredFiles = allFilesData;
             
             // 按分类过滤
@@ -392,6 +399,7 @@
         }
 
         function renderFileList(files) {
+            console.log('=== Frontend: renderFileList called with ===', files);
             currentDisplayedFiles = files; // 保存当前显示的文件列表
             
             if (files.length === 0) {
@@ -400,7 +408,10 @@
                 return;
             }
 
-            fileList.innerHTML = files.map(file => {
+            const html = files.map((file, index) => {
+                console.log(`=== Frontend: Rendering file ${index} ===`, file);
+                console.log(`=== Frontend: File name is ===`, file.name, typeof file.name);
+                
                 const iconClass = getFileIconClass(file.name);
                 const icon = getFileIcon(file.name);
                 const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
@@ -426,6 +437,8 @@
                 `;
             }).join('');
             
+            console.log('=== Frontend: Generated HTML ===', html);
+            fileList.innerHTML = html;
             updateBulkActions();
         }
 
