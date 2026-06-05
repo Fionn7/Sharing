@@ -296,6 +296,12 @@ async function handleUpload(request: Request, token: string, owner: string, repo
       return jsonResponse({ ok: false, message: '请选择文件' }, 400);
     }
 
+    const fileSize = (file as File).size;
+    const maxSize = 25 * 1024 * 1024; // 25MB limit
+    if (fileSize > maxSize) {
+      return jsonResponse({ ok: false, message: `文件过大 (${(fileSize / 1024 / 1024).toFixed(1)}MB)，最大支持 25MB` }, 400);
+    }
+
     const ext = filename.toString().split('.').pop()?.toLowerCase() || '';
     const folder = getFolder(ext);
     const path = `${folder}/${filename}`;
