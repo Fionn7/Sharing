@@ -628,12 +628,33 @@
                         </div>
                     </div>
                     <div class="text-sm text-white/70 ml-4 progress-text">0%</div>
+                    <button class="retry-btn ml-3 px-3 py-1 bg-sky-500 hover:bg-sky-600 text-white text-sm rounded-lg transition-colors hidden">
+                        <i class="fa fa-refresh mr-1"></i>重试
+                    </button>
+                    <button class="remove-btn ml-2 px-3 py-1 bg-white/10 hover:bg-white/20 text-white/70 text-sm rounded-lg transition-colors hidden">
+                        <i class="fa fa-times mr-1"></i>移除
+                    </button>
                 `;
                 uploadList.appendChild(uploadItem);
                 
                 const progressBar = uploadItem.querySelector('.progress-bar');
                 const progressText = uploadItem.querySelector('.progress-text');
+                const retryBtn = uploadItem.querySelector('.retry-btn');
+                const removeBtn = uploadItem.querySelector('.remove-btn');
                 let progress = 0;
+                
+                // 存储文件引用
+                uploadItem._file = file;
+                
+                // 重试按钮点击事件
+                retryBtn.addEventListener('click', () => {
+                    retryUpload(uploadItem, file, progressBar, progressText, retryBtn, removeBtn);
+                });
+                
+                // 移除按钮点击事件
+                removeBtn.addEventListener('click', () => {
+                    uploadItem.remove();
+                });
                 
                 const interval = setInterval(() => {
                     progress += Math.random() * 15;
@@ -641,7 +662,7 @@
                         progress = 100;
                         clearInterval(interval);
                         progressText.textContent = '上传中...';
-                        uploadFile(file, progressBar, progressText);
+                        uploadFile(file, progressBar, progressText, retryBtn, removeBtn);
                     } else {
                         progressText.textContent = Math.round(progress) + '%';
                     }
@@ -650,7 +671,31 @@
             });
         }
 
-        async function uploadFile(file, progressBar, progressText) {
+        async function retryUpload(uploadItem, file, progressBar, progressText, retryBtn, removeBtn) {
+            // 重置状态
+            progressBar.classList.remove('bg-red-500');
+            progressBar.classList.add('gradient-bg');
+            progressBar.style.width = '0%';
+            retryBtn.classList.add('hidden');
+            removeBtn.classList.add('hidden');
+            
+            // 重新开始上传
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    progressText.textContent = '上传中...';
+                    uploadFile(file, progressBar, progressText, retryBtn, removeBtn);
+                } else {
+                    progressText.textContent = Math.round(progress) + '%';
+                }
+                progressBar.style.width = progress + '%';
+            }, 150);
+        }
+
+        async function uploadFile(file, progressBar, progressText, retryBtn, removeBtn) {
             try {
                 const isLargeFile = file.size >= 1024 * 1024; // >= 1MB 视为大文件
                 
@@ -679,10 +724,18 @@
                     progressText.textContent = '完成';
                     showToast(`上传成功: ${file.name}`, 'success');
                     loadFiles();
+                    // 成功后延迟移除
+                    setTimeout(() => {
+                        const uploadItem = progressBar.closest('.glass');
+                        if (uploadItem) uploadItem.remove();
+                    }, 2000);
                 } else {
                     progressText.textContent = '失败';
                     progressBar.classList.remove('gradient-bg');
                     progressBar.classList.add('bg-red-500');
+                    // 显示重试和移除按钮
+                    if (retryBtn) retryBtn.classList.remove('hidden');
+                    if (removeBtn) removeBtn.classList.remove('hidden');
                     showToast(`上传失败: ${data.message || '未知错误'}`, 'error');
                 }
             } catch (error) {
@@ -690,6 +743,9 @@
                 progressText.textContent = error.name === 'AbortError' ? '超时' : '失败';
                 progressBar.classList.remove('gradient-bg');
                 progressBar.classList.add('bg-red-500');
+                // 显示重试和移除按钮
+                if (retryBtn) retryBtn.classList.remove('hidden');
+                if (removeBtn) removeBtn.classList.remove('hidden');
                 showToast(error.name === 'AbortError' ? '上传超时，请重试' : '上传失败，请稍后重试', 'error');
             }
         }

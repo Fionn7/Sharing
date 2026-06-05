@@ -599,15 +599,21 @@ function sanitizeFilename(filename: string): string {
     sanitized = ext && ext !== filename ? `unnamed_file.${ext}` : 'unnamed_file';
   }
   
-  // 限制文件名长度（GitHub Releases 有一定限制）
-  if (sanitized.length > 255) {
+  // 限制文件名长度（GitHub Releases 有一定限制，保守一点用 100）
+  if (sanitized.length > 100) {
     const extIndex = sanitized.lastIndexOf('.');
     if (extIndex > 0) {
       const ext = sanitized.substring(extIndex);
       const name = sanitized.substring(0, extIndex);
-      sanitized = name.substring(0, 250 - ext.length) + ext;
+      // 智能截断：保留中文完整性
+      let truncatedName = name;
+      let maxLength = 80 - ext.length;
+      while (truncatedName.length > maxLength && truncatedName.length > 0) {
+        truncatedName = truncatedName.substring(0, truncatedName.length - 1);
+      }
+      sanitized = truncatedName + ext;
     } else {
-      sanitized = sanitized.substring(0, 250);
+      sanitized = sanitized.substring(0, 80);
     }
   }
   
