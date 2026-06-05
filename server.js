@@ -25,6 +25,9 @@ const PORT = Number(process.env.PORT) || 3100;
 // 文件大小限制 - 50MB（Render 免费版内存和超时限制）
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+// GitHub API 分块上传的块大小（最大 25MB）
+const CHUNK_SIZE = 25 * 1024 * 1024;
+
 // 使用磁盘存储替代内存存储，减少内存占用
 const upload = multer({
   storage: multer.diskStorage({
@@ -48,6 +51,19 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Fionn7';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'Sharing';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
+
+// 计算文件的 SHA256
+async function calculateSHA256(filePath) {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256');
+  const stream = fs.createReadStream(filePath);
+  
+  return new Promise((resolve, reject) => {
+    stream.on('data', (data) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
 
 // 文件类型分类函数
 function getFileCategory(ext) {
@@ -92,9 +108,9 @@ function getFileCategory(ext) {
   return categories[ext] || { folder: 'files/others', type: '其他文件', icon: '📁' };
 }
 
-// 请求超时设置（30秒 - Render 免费版限制）
+// 请求超时设置（60秒）
 app.use((req, res, next) => {
-  res.setTimeout(60000, () => {
+  res.setTimeout(120000, () => {
     console.log('Request timeout');
     if (!res.headersSent) {
       res.status(408).json({ ok: false, message: '请求超时，请使用更小的文件或重试' });
@@ -103,7 +119,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// 增加请求体大小限制
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
@@ -330,19 +348,61 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    console.log('正在读取文件内容...');
-    // 使用异步读取文件，避免阻塞事件循环
-    const fileContent = await fs.promises.readFile(req.file.path);
-    const content = fileContent.toString('base64');
+    let uploadResult;
     
-    // 立即清理临时文件，释放磁盘空间
+    // 根据文件大小选择上传方式
+    if (fileSize > 20 * 1024 * 1024) {
+      // 大文件使用流式分块上传
+      console.log('使用流式分块上传...');
+      uploadResult = await uploadFileInChunks(req.file.path, folder, safeFilename, fileSize);
+    } else {
+      // 小文件使用普通方式
+      console.log('使用普通上传...');
+      uploadResult = await uploadSmallFile(req.file.path, folder, safeFilename);
+    }
+    
+    // 清理临时文件
     fs.unlink(req.file.path, (err) => {
       if (err) console.warn('删除临时文件失败:', err);
     });
     
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${safeFilename}`;
+    if (!uploadResult.ok) {
+      return res.status(500).json({ ok: false, message: uploadResult.message });
+    }
+
+    console.log('上传成功!');
+    return res.json({
+      ok: true,
+      message: '上传成功',
+      file: safeFilename,
+      size: fileSize,
+      category: folder,
+      fileType: fileType,
+      fileIcon: fileCategory.icon,
+      downloadUrl: `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/${folder}/${safeFilename}`,
+    });
+  } catch (error) {
+    console.error('上传失败:', error);
+    // 清理临时文件
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.warn('删除临时文件失败:', err);
+      });
+    }
+    return res.status(500).json({ ok: false, message: '服务器异常', error: error.message });
+  }
+});
+
+// 上传小文件（< 20MB）
+async function uploadSmallFile(filePath, folder, filename) {
+  try {
+    // 读取文件内容
+    const fileContent = await fs.promises.readFile(filePath);
+    const content = fileContent.toString('base64');
     
-    console.log('正在检查文件是否已存在...');
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${filename}`;
+    
+    // 检查文件是否已存在
     const shaRes = await fetch(url, {
       headers: {
         Accept: 'application/vnd.github+json',
@@ -357,11 +417,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       const existing = await shaRes.json();
       sha = existing.sha;
       console.log('文件已存在，SHA:', sha);
-    } else {
-      console.log('文件不存在，将创建新文件');
     }
 
-    console.log('正在上传到 GitHub...');
+    // 上传文件
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -372,64 +430,161 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: `Upload file: ${safeFilename}`,
+        message: `Upload file: ${filename}`,
         content,
         branch: GITHUB_BRANCH,
         sha,
       }),
     });
 
-    const data = await response.json().catch(() => ({}));
-    
-    console.log('GitHub 响应状态:', response.status);
     if (!response.ok) {
-      console.error('GitHub 上传失败:', data);
-      
-      // 提供更友好的错误消息
-      let errorMessage = data.message || '上传到 GitHub 失败';
-      
-      if (response.status === 401) {
-        errorMessage = 'GitHub Token 无效或已过期，请检查后端配置';
-      } else if (response.status === 403) {
-        if (data.message && data.message.includes('rate limit')) {
-          errorMessage = 'GitHub API 请求次数超限，请稍后再试';
-        } else {
-          errorMessage = 'GitHub Token 权限不足，需要 repo 权限';
-        }
-      } else if (response.status === 413) {
-        errorMessage = '文件太大，无法上传到 GitHub';
-      }
-      
-      return res.status(response.status).json({
-        ok: false,
-        message: errorMessage,
-        details: data,
-      });
+      const data = await response.json().catch(() => ({}));
+      return { ok: false, message: data.message || '上传失败' };
     }
 
-    console.log('上传成功!');
-    return res.json({
-      ok: true,
-      message: '上传成功',
-      file: safeFilename,
-      size: fileSize,
-      category: folder,
-      fileType: fileType,
-      fileIcon: fileCategory.icon,
-      downloadUrl: `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/${folder}/${safeFilename}`,
-      htmlUrl: data.content?.html_url || null,
-    });
+    return { ok: true };
   } catch (error) {
-    console.error(error);
-    // 清理临时文件
-    if (req.file && req.file.path) {
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.warn('删除临时文件失败:', err);
-      });
-    }
-    return res.status(500).json({ ok: false, message: '服务器异常', error: error.message });
+    return { ok: false, message: error.message };
   }
-});
+}
+
+// 分块上传大文件
+async function uploadFileInChunks(filePath, folder, filename, fileSize) {
+  try {
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'sharing-file-backend',
+    };
+
+    // 计算文件 SHA256
+    const oid = await calculateSHA256(filePath);
+    console.log('文件 SHA256:', oid);
+
+    // 1. 创建 LFS 上传会话
+    console.log('创建 LFS 上传会话...');
+    const initUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/lfs/objects/batch`;
+    const initResponse = await fetch(initUrl, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operation: 'upload',
+        transfers: ['basic'],
+        objects: [{ oid, size: fileSize }],
+      }),
+    });
+
+    const initData = await initResponse.json();
+    if (!initResponse.ok) {
+      return { ok: false, message: `创建上传会话失败: ${initData.message || initResponse.status}` };
+    }
+
+    const uploadAction = initData.objects[0]?.actions?.upload;
+    if (!uploadAction) {
+      // 文件可能已存在于 LFS 中，直接创建引用
+      console.log('文件已存在于 LFS 中');
+      return await createLFSReference(folder, filename, oid, fileSize);
+    }
+
+    // 2. 分块上传文件
+    console.log('开始分块上传...');
+    const uploadUrl = uploadAction.href;
+    
+    await new Promise((resolve, reject) => {
+      const fileStream = fs.createReadStream(filePath, { highWaterMark: CHUNK_SIZE });
+      let bytesUploaded = 0;
+
+      fileStream.on('data', async (chunk) => {
+        fileStream.pause();
+        try {
+          const response = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Length': chunk.length,
+              'Content-Range': `bytes ${bytesUploaded}-${bytesUploaded + chunk.length - 1}/${fileSize}`,
+            },
+            body: chunk,
+          });
+
+          if (!response.ok) {
+            reject(new Error(`上传块失败: ${response.status}`));
+            return;
+          }
+
+          bytesUploaded += chunk.length;
+          console.log(`已上传: ${((bytesUploaded / fileSize) * 100).toFixed(2)}%`);
+          fileStream.resume();
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      fileStream.on('end', resolve);
+      fileStream.on('error', reject);
+    });
+
+    // 3. 创建 LFS 引用
+    return await createLFSReference(folder, filename, oid, fileSize);
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+}
+
+// 创建 LFS 文件引用
+async function createLFSReference(folder, filename, oid, size) {
+  try {
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'sharing-file-backend',
+      'Content-Type': 'application/json',
+    };
+
+    // LFS 文件的内容格式
+    const lfsContent = `version https://git-lfs.github.com/spec/v1
+oid sha256:${oid}
+size ${size}
+`;
+    const content = Buffer.from(lfsContent).toString('base64');
+
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${filename}`;
+    
+    // 检查文件是否已存在
+    const shaRes = await fetch(url, { headers });
+    let sha = null;
+    if (shaRes.ok) {
+      const existing = await shaRes.json();
+      sha = existing.sha;
+    }
+
+    // 创建或更新文件
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        message: `Upload LFS file: ${filename}`,
+        content,
+        branch: GITHUB_BRANCH,
+        sha,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      return { ok: false, message: `创建引用失败: ${data.message || response.status}` };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+}
 
 app.listen(PORT, () => {
   console.log(`File backend listening on http://localhost:${PORT}`);
