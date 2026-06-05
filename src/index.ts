@@ -118,11 +118,6 @@ function getHtmlContent(): string {
                 background: linear-gradient(135deg, rgba(0, 100, 62, 0.15), rgba(0, 0, 0, 0.05));
             }
             .scroll-reveal {
-                opacity: 0;
-                transform: translateY(20px);
-                transition: all 0.6s ease-out;
-            }
-            .scroll-reveal.active {
                 opacity: 1;
                 transform: translateY(0);
             }
@@ -250,17 +245,6 @@ function getHtmlContent(): string {
                 navbar.classList.remove('py-2');
             }
         });
-
-        const scrollRevealElements = document.querySelectorAll('.scroll-reveal');
-        const observer = new IntersectionObserver(function(entries) {
-            entries.forEach(function(entry) {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('active');
-                }
-            });
-        }, { threshold: 0.1 });
-
-        scrollRevealElements.forEach(function(el) { observer.observe(el); });
 
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
