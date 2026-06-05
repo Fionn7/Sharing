@@ -1,5 +1,5 @@
-export async function onRequestPost(context) {
-  const { request, env } = context;
+export async function onRequestDelete(context) {
+  const { request, env, params } = context;
   
   try {
     console.log('收到删除请求');
@@ -12,25 +12,18 @@ export async function onRequestPost(context) {
       });
     }
     
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ ok: false, message: '请求体格式错误' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const { name } = params || {};
+    const searchParams = new URL(request.url).searchParams;
+    const folder = searchParams.get('category');
     
-    const { filename, folder } = body;
-    
-    if (!filename) {
+    if (!name) {
       return new Response(JSON.stringify({ ok: false, message: '缺少文件名参数' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
+    const filename = decodeURIComponent(name);
     const safeFolder = (folder || 'others').replace(/\.\./g, '').replace(/^\//, '');
     const key = `files/${safeFolder}/${filename}`;
     
