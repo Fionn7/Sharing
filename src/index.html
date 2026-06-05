@@ -169,34 +169,29 @@
                         </div>
 
                         <!-- 搜索框 + 批量操作栏 -->
-                        <div class="mt-4 glass rounded-xl p-4">
-                            <div class="flex flex-col md:flex-row gap-4 items-center">
-                                <!-- 搜索框 -->
-                                <div class="relative flex-1 w-full">
-                                    <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
-                                    <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
-                                </div>
-                                
-                                <!-- 批量操作栏 -->
-                                <div class="flex items-center gap-3" id="bulkActions">
-                                    <!-- 多选模式开关 -->
-                                    <button id="multiSelectToggle" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors flex items-center gap-2">
-                                        <i class="fa fa-check-square-o"></i>
-                                        多选
-                                    </button>
-                                    <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
-                                    <button id="bulkDownloadBt" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                        <i class="fa fa-download mr-2"></i>下载
-                                    </button>
-                                    <button id="bulkDeleteBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                        <i class="fa fa-trash mr-2"></i>删除
-                                    </button>
-                                    <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                        取消全选
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+        <div class="mt-4 glass rounded-xl p-4">
+          <div class="flex flex-col md:flex-row gap-4 items-center">
+            <!-- 搜索框 -->
+            <div class="relative flex-1 w-full">
+              <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
+              <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
+            </div>
+            
+            <!-- 批量操作栏 -->
+            <div class="flex items-center gap-3" id="bulkActions">
+              <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
+              <button id="bulkDownloadBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <i class="fa fa-download mr-2"></i>下载
+              </button>
+              <button id="bulkDeleteBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <i class="fa fa-trash mr-2"></i>删除
+              </button>
+              <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                取消全选
+              </button>
+            </div>
+          </div>
+        </div>
                         
                         <div class="space-y-2 mt-4" id="fileList">
                             <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
@@ -359,7 +354,6 @@
         let allFilesData = [];
         let searchQuery = '';
         let selectedFiles = new Set();
-        let multiSelectMode = false; // 多选模式开关
 
         function displayFiles(files) {
             allFilesData = files;
@@ -410,11 +404,14 @@
                 const isSelected = selectedFiles.has(file.path);
                 
                 return `
-                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected && multiSelectMode ? 'bg-primary/20 border border-primary/50' : ''}" data-path="${escapeHTML(file.path)}">
-                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">
+                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-primary/20 border border-primary/50' : ''}" data-path="${escapeHTML(file.path)}">
+                        <div class="mr-3 flex items-center">
+                            <input type="checkbox" class="w-5 h-5 cursor-pointer rounded border-white/30 bg-white/10 text-primary focus:ring-primary/50 focus:ring-offset-0" ${isSelected ? 'checked' : ''} onchange="toggleSelectFile('${escapeHTML(file.path)}')">
+                        </div>
+                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
-                        <div class="flex-1" onclick="${!multiSelectMode ? `event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')` : ''}">
+                        <div class="flex-1" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
                             <div class="text-sm">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1">大文件</span>' : ''}</div>
                         </div>
                         <div class="text-xs text-white/50">${formatFileSize(file.size)}</div>
@@ -426,26 +423,18 @@
                 `;
             }).join('');
             
-            // 只在多选模式下添加点击选中事件
-            if (multiSelectMode) {
-                // 添加整行点击选中事件
-                document.querySelectorAll('[data-path]').forEach(row => {
-                    row.addEventListener('click', (e) => {
-                        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-                            const path = row.dataset.path;
-                            if (selectedFiles.has(path)) {
-                                selectedFiles.delete(path);
-                            } else {
-                                selectedFiles.add(path);
-                            }
-                            updateBulkActions();
-                            renderFileList(files);
-                        }
-                    });
-                });
-            }
-            
             updateBulkActions();
+        }
+
+        // 切换文件选中状态
+        function toggleSelectFile(path) {
+            if (selectedFiles.has(path)) {
+                selectedFiles.delete(path);
+            } else {
+                selectedFiles.add(path);
+            }
+            updateBulkActions();
+            filterFiles();
         }
 
         // 分类过滤器事件监听
@@ -468,17 +457,7 @@
         // 更新批量操作UI
         function updateBulkActions() {
             const selectedCount = selectedFiles.size;
-            const hasSelected = selectedCount > 0 && multiSelectMode;
-            
-            // 更新多选按钮状态
-            const multiSelectBtn = document.getElementById('multiSelectToggle');
-            if (multiSelectMode) {
-                multiSelectBtn.classList.add('bg-primary/30', 'border', 'border-primary/50');
-                multiSelectBtn.classList.remove('bg-white/10');
-            } else {
-                multiSelectBtn.classList.remove('bg-primary/30', 'border', 'border-primary/50');
-                multiSelectBtn.classList.add('bg-white/10');
-            }
+            const hasSelected = selectedCount > 0;
             
             // 更新选中数量显示
             const selectedCountEl = document.getElementById('selectedCount');
@@ -501,15 +480,6 @@
         document.getElementById('deselectAllBtn').addEventListener('click', () => {
             selectedFiles.clear();
             filterFiles();
-        });
-
-        // 多选模式开关事件
-        document.getElementById('multiSelectToggle').addEventListener('click', () => {
-            multiSelectMode = !multiSelectMode;
-            if (!multiSelectMode) {
-                selectedFiles.clear(); // 关闭多选模式时清空选中
-            }
-            filterFiles(); // 重新渲染文件列表
         });
 
         // 批量下载
