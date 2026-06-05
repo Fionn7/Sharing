@@ -180,7 +180,12 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const path = `${folder}/${filename}`;
 
     const arrayBuffer = await (file as File).arrayBuffer();
-    const content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    const content = btoa(binary);
 
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
@@ -296,8 +301,8 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
   }
 
   try {
-    const fullPath = `files/${path}`;
-    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${fullPath}`;
+    // path 已经包含完整路径，如 files/documents/report.docx
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -309,7 +314,7 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
       return jsonResponse({ ok: false, message: '文件不存在' }, 404);
     }
 
-    const filename = fullPath.split('/').pop() || 'download';
+    const filename = path.split('/').pop() || 'download';
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
     return new Response(response.body, {

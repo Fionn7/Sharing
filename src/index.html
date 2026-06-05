@@ -353,7 +353,8 @@
         });
 
         function downloadFile(filename, folder) {
-            const url = `https://raw.githubusercontent.com/Fionn7/Sharing/main/${folder}/${encodeURIComponent(filename)}`;
+            // 通过 Worker 代理下载，确保路径正确
+            const url = `/download/${folder}/${encodeURIComponent(filename)}`;
             const link = document.createElement('a');
             link.href = url;
             link.download = filename;
