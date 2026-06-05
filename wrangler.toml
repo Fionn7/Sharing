@@ -2,12 +2,12 @@ name = "sharing"
 compatibility_date = "2026-06-05"
 compatibility_flags = ["nodejs_compat"]
 
-# Worker 入口文件
-main = "_worker.js"
+# Cloudflare Pages configuration
+pages_build_output_dir = "dist"
 
 [observability]
 enabled = true
 
-# 配置环境变量（敏感信息通过 wrangler secrets 设置）
+# 配置环境变量（敏感信息通过 wrangler pages secret 设置）
 [vars]
 PORT = "3100"

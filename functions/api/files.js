@@ -1,8 +1,4 @@
-import { readFileSync } from 'fs';
-
 const GITHUB_BRANCH = 'main';
-
-const INDEX_HTML = readFileSync('./index.html', 'utf-8');
 
 function getFileCategory(ext) {
   const categories = {
@@ -40,16 +36,63 @@ function sanitizeFilename(filename) {
   return filename.replace(/[/\\:*?"<>|]/g, '_');
 }
 
-async function handleGetFiles(request, githubToken, githubOwner, githubRepo) {
+export async function onRequest({ request, env, params }) {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  const method = request.method;
+
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
+      }
+    });
+  }
+
+  const githubToken = env.GITHUB_TOKEN;
+  const githubOwner = env.GITHUB_OWNER;
+  const githubRepo = env.GITHUB_REPO;
+
+  if (!githubToken || !githubOwner || !githubRepo) {
+    return new Response(JSON.stringify({ ok: false, message: '未配置 GitHub 凭据' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // GET /api/files - List all files
+  if (pathname === '/api/files' && method === 'GET') {
+    return handleGetFiles(githubToken, githubOwner, githubRepo);
+  }
+
+  // DELETE /api/files/:filename?category=xxx - Delete a file
+  if (pathname.startsWith('/api/files/') && method === 'DELETE') {
+    const filename = decodeURIComponent(pathname.replace('/api/files/', ''));
+    const category = url.searchParams.get('category');
+    return handleDeleteFile(filename, category, githubToken, githubOwner, githubRepo);
+  }
+
+  // POST /api/upload - Upload a file
+  if (pathname === '/api/upload' && method === 'POST') {
+    return handleUpload(request, githubToken, githubOwner, githubRepo);
+  }
+
+  return new Response(JSON.stringify({ ok: false, message: '路由不存在' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+async function handleGetFiles(githubToken, githubOwner, githubRepo) {
   try {
-    const searchParams = new URL(request.url).searchParams;
-    const category = searchParams.get('category') || 'all';
     const allFiles = [];
     let page = 1;
     
     while (true) {
-      const url = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files?page=${page}&per_page=100`;
-      const response = await fetch(url, {
+      const apiUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files?page=${page}&per_page=100`;
+      const response = await fetch(apiUrl, {
         headers: {
           Accept: 'application/vnd.github+json',
           Authorization: `Bearer ${githubToken}`,
@@ -71,19 +114,17 @@ async function handleGetFiles(request, githubToken, githubOwner, githubRepo) {
         const ext = filename.split('.').pop()?.toLowerCase() || '';
         const fileCategory = getFileCategory(ext);
         
-        if (category === 'all' || folder === `files/${category}` || fileCategory.type === category) {
-          allFiles.push({
-            name: filename,
-            filename: filename,
-            path: key,
-            category: folder,
-            fileType: fileCategory.type,
-            icon: fileCategory.icon,
-            size: file.size,
-            lastModified: file.updated_at,
-            downloadUrl: `/download/${key}`,
-          });
-        }
+        allFiles.push({
+          name: filename,
+          filename: filename,
+          path: key,
+          folder: folder,
+          type: fileCategory.type,
+          icon: fileCategory.icon,
+          size: file.size,
+          last_modified: file.updated_at,
+          downloadUrl: `/download/${key}`,
+        });
       }
       page++;
     }
@@ -99,22 +140,17 @@ async function handleGetFiles(request, githubToken, githubOwner, githubRepo) {
   }
 }
 
-async function handleDeleteFile(request, githubToken, githubOwner, githubRepo) {
+async function handleDeleteFile(filename, category, githubToken, githubOwner, githubRepo) {
   try {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    const name = decodeURIComponent(pathname.replace('/api/files/', ''));
-    const folder = url.searchParams.get('category');
-    
-    if (!name) {
+    if (!filename) {
       return new Response(JSON.stringify({ ok: false, message: '缺少文件名参数' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    const safeFolder = (folder || 'others').replace(/\.\./g, '').replace(/^\//, '');
-    const key = `files/${safeFolder}/${name}`;
+    const safeFolder = (category || 'others').replace(/\.\./g, '').replace(/^\//, '');
+    const key = `files/${safeFolder}/${filename}`;
     
     if (key.includes('..') || !key.startsWith('files/')) {
       return new Response(JSON.stringify({ ok: false, message: '非法路径' }), {
@@ -152,7 +188,7 @@ async function handleDeleteFile(request, githubToken, githubOwner, githubRepo) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: `Delete file: ${name}`,
+        message: `Delete file: ${filename}`,
         sha: sha,
         branch: GITHUB_BRANCH,
       }),
@@ -166,7 +202,7 @@ async function handleDeleteFile(request, githubToken, githubOwner, githubRepo) {
       });
     }
     
-    return new Response(JSON.stringify({ ok: true, message: '删除成功', file: name }), {
+    return new Response(JSON.stringify({ ok: true, message: '删除成功', file: filename }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
@@ -200,7 +236,7 @@ async function handleUpload(request, githubToken, githubOwner, githubRepo) {
     const filename = formData.get('filename') || file.name;
     const safeFilename = sanitizeFilename(filename);
     const fileSize = file.size;
-    const MAX_FILE_SIZE = 25 * 1024 * 1024;
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
     
     if (fileSize > MAX_FILE_SIZE) {
       return new Response(JSON.stringify({ ok: false, message: `文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）` }), {
@@ -247,8 +283,8 @@ async function handleUpload(request, githubToken, githubOwner, githubRepo) {
       file: safeFilename,
       size: fileSize,
       category: folder,
-      fileType: fileCategory.type,
-      fileIcon: fileCategory.icon,
+      type: fileCategory.type,
+      icon: fileCategory.icon,
       downloadUrl: `/download/${key}`,
     }), {
       headers: { 'Content-Type': 'application/json' }
@@ -260,105 +296,3 @@ async function handleUpload(request, githubToken, githubOwner, githubRepo) {
     });
   }
 }
-
-async function handleDownload(request, githubToken, githubOwner, githubRepo) {
-  try {
-    const url = new URL(request.url);
-    const path = url.pathname.replace('/download/', '');
-    const key = `files/${path}`;
-    
-    if (key.includes('..') || !key.startsWith('files/')) {
-      return new Response(JSON.stringify({ ok: false, message: '非法路径' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
-    const getUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/${key}`;
-    const response = await fetch(getUrl, {
-      headers: {
-        Accept: 'application/vnd.github.raw',
-        Authorization: `Bearer ${githubToken}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
-    
-    if (!response.ok) {
-      return new Response(JSON.stringify({ ok: false, message: '文件不存在' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
-    const filename = key.split('/').pop();
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    const contentLength = response.headers.get('content-length');
-    
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-        'Content-Length': contentLength,
-      },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, message: '下载失败', error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    const method = request.method;
-
-    if (method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
-        }
-      });
-    }
-
-    const githubToken = env.GITHUB_TOKEN;
-    const githubOwner = env.GITHUB_OWNER;
-    const githubRepo = env.GITHUB_REPO;
-
-    if (!githubToken || !githubOwner || !githubRepo) {
-      return new Response(JSON.stringify({ ok: false, message: '未配置 GitHub 凭据' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (pathname === '/api/files' && method === 'GET') {
-      return handleGetFiles(request, githubToken, githubOwner, githubRepo);
-    }
-
-    if (pathname.startsWith('/api/files/') && method === 'DELETE') {
-      return handleDeleteFile(request, githubToken, githubOwner, githubRepo);
-    }
-
-    if (pathname === '/api/upload' && method === 'POST') {
-      return handleUpload(request, githubToken, githubOwner, githubRepo);
-    }
-
-    if (pathname.startsWith('/download/') && method === 'GET') {
-      return handleDownload(request, githubToken, githubOwner, githubRepo);
-    }
-
-    if (pathname === '/' || pathname === '/index.html') {
-      return new Response(INDEX_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-    }
-
-    return new Response(JSON.stringify({ ok: false, message: '路由不存在' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-};
