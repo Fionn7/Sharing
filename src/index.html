@@ -182,14 +182,14 @@
                                     <!-- 多选模式开关 -->
                                     <button id="multiSelectToggle" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors flex items-center gap-2">
                                         <i class="fa fa-check-square-o"></i>
-                                        多选模式
+                                        多选
                                     </button>
                                     <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
-                                    <button id="bulkDownloadBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                        <i class="fa fa-download mr-2"></i>批量下载
+                                    <button id="bulkDownloadBt" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        <i class="fa fa-download mr-2"></i>下载
                                     </button>
                                     <button id="bulkDeleteBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                        <i class="fa fa-trash mr-2"></i>批量删除
+                                        <i class="fa fa-trash mr-2"></i>删除
                                     </button>
                                     <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                                         取消全选
@@ -409,16 +409,8 @@
                 const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
                 const isSelected = selectedFiles.has(file.path);
                 
-                // 根据多选模式显示/隐藏复选框
-                const checkboxHTML = multiSelectMode ? `
-                    <div class="w-6 h-6 mr-3 flex items-center justify-center">
-                        <input type="checkbox" class="file-checkbox w-4 h-4 rounded border-white/30 bg-white/5 accent-primary cursor-pointer" data-path="${escapeHTML(file.path)}" ${isSelected ? 'checked' : ''}>
-                    </div>
-                ` : '';
-                
                 return `
                     <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected && multiSelectMode ? 'bg-primary/20 border border-primary/50' : ''}" data-path="${escapeHTML(file.path)}">
-                        ${checkboxHTML}
                         <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
@@ -434,38 +426,20 @@
                 `;
             }).join('');
             
-            // 只在多选模式下添加复选框事件
+            // 只在多选模式下添加点击选中事件
             if (multiSelectMode) {
-                // 添加复选框事件监听
-                document.querySelectorAll('.file-checkbox').forEach(checkbox => {
-                    checkbox.addEventListener('change', (e) => {
-                        e.stopPropagation();
-                        const path = checkbox.dataset.path;
-                        if (checkbox.checked) {
-                            selectedFiles.add(path);
-                        } else {
-                            selectedFiles.delete(path);
-                        }
-                        updateBulkActions();
-                    });
-                });
-                
                 // 添加整行点击选中事件
                 document.querySelectorAll('[data-path]').forEach(row => {
                     row.addEventListener('click', (e) => {
-                        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button') && e.target.tagName !== 'INPUT') {
-                            const checkbox = row.querySelector('.file-checkbox');
-                            if (checkbox) {
-                                checkbox.checked = !checkbox.checked;
-                                const path = row.dataset.path;
-                                if (checkbox.checked) {
-                                    selectedFiles.add(path);
-                                } else {
-                                    selectedFiles.delete(path);
-                                }
-                                updateBulkActions();
-                                renderFileList(files);
+                        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+                            const path = row.dataset.path;
+                            if (selectedFiles.has(path)) {
+                                selectedFiles.delete(path);
+                            } else {
+                                selectedFiles.add(path);
                             }
+                            updateBulkActions();
+                            renderFileList(files);
                         }
                     });
                 });
