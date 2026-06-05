@@ -277,12 +277,25 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
               continue;
             }
             
-            const ext = asset.name.split('.').pop()?.toLowerCase() || '';
+            // 🔧 解码原始文件名
+            let displayName = asset.name;
+            if (asset.name.includes('___ORIGINAL___')) {
+              try {
+                const parts = asset.name.split('___ORIGINAL___');
+                displayName = decodeURIComponent(atob(parts[1]));
+                console.log(`  Decoded filename: "${asset.name}" -> "${displayName}"`);
+              } catch (e) {
+                console.log(`  Failed to decode filename: "${asset.name}"`);
+              }
+            }
+            
+            const ext = displayName.split('.').pop()?.toLowerCase() || '';
             const category = getCategory(ext);
             const folder = getFolder(ext);
             
             const fileObj = {
-              name: asset.name,
+              name: displayName,
+              originalName: asset.name, // 保存原始编码名，用于下载等操作
               path: `release/${asset.id}`,
               folder,
               size: asset.size,
@@ -528,10 +541,32 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
     diagnostics.push({ type: 'info', message: `开始上传，期望文件名: ${filename}` });
     console.log(`Trying upload with filename: ${filename}`);
     
+    // 🔧 新方案：编码原始文件名到上传文件名中
+    // 格式：safeName-timestamp.ext___ORIGINAL___base64encodedOriginal
+    const timestamp = Date.now();
+    const ext = filename.includes('.') ? filename.split('.').pop() : '';
+    const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+    
+    // 生成安全的 ASCII 基础名
+    const safeBaseName = baseName.split('').map(c => {
+      const code = c.charCodeAt(0);
+      if (code < 128) return c;
+      return '_'; // 非 ASCII 替换成下划线
+    }).join('');
+    
+    // 编码原始文件名
+    const encodedOriginalFilename = btoa(encodeURIComponent(filename));
+    
+    // 最终上传文件名（GitHub 看到的）
+    const uploadFilename = `${safeBaseName}-${timestamp}${ext ? '.' + ext : ''}___ORIGINAL___${encodedOriginalFilename}`;
+    
+    diagnostics.push({ type: 'info', message: `使用编码文件名上传: ${uploadFilename}` });
+    console.log('Upload filename (GitHub):', uploadFilename);
+    
     // 直接从 file 读取二进制
     const binaryContent = await file.arrayBuffer();
     
-    // 首先检查文件是否存在 - 只做精确匹配
+    // 首先检查文件是否存在 - 查找是否有相同原始文件名的编码版本
     const checkResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
       headers: getGitHubHeaders(token)
     });
@@ -542,15 +577,26 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       diagnostics.push({ type: 'info', message: `当前有 ${assets.length} 个文件` });
       console.log('Current assets:', assets.map((a: any) => `[${a.id}] ${a.name}`));
       
-      // 只做精确匹配，避免误删其他文件
-      existingAsset = assets.find((a: any) => a.name === filename);
+      // 查找是否有相同原始文件名的编码版本
+      existingAsset = assets.find((a: any) => {
+        if (a.name.includes('___ORIGINAL___')) {
+          try {
+            const parts = a.name.split('___ORIGINAL___');
+            const decoded = decodeURIComponent(atob(parts[1]));
+            return decoded === filename;
+          } catch {
+            return false;
+          }
+        }
+        return a.name === filename; // 老版本文件
+      });
       
       if (existingAsset) {
-        diagnostics.push({ type: 'warning', message: `找到同名文件: ${existingAsset.name} (ID: ${existingAsset.id})，将先删除` });
-        console.log(`Found exact match to replace: "${existingAsset.name}" (ID: ${existingAsset.id})`);
+        diagnostics.push({ type: 'warning', message: `找到匹配文件: ${existingAsset.name} (ID: ${existingAsset.id})，将先删除` });
+        console.log(`Found match to replace: "${existingAsset.name}" (ID: ${existingAsset.id})`);
       } else {
-        diagnostics.push({ type: 'info', message: `未找到同名文件，直接上传` });
-        console.log(`No exact match found for "${filename}"`);
+        diagnostics.push({ type: 'info', message: `未找到匹配文件，直接上传` });
+        console.log(`No match found for "${filename}"`);
       }
     }
     
@@ -591,40 +637,30 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       }
     }
     
-    // 构建上传 URL - GitHub 推荐的方式
-    const encodedFilename = encodeURIComponent(filename);
+    // 构建上传 URL - 使用编码后的文件名
+    const encodedFilename = encodeURIComponent(uploadFilename);
     const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodedFilename}`;
     
     diagnostics.push({ type: 'info', message: `上传 URL: ${uploadUrl}` });
     diagnostics.push({ type: 'info', message: `编码后文件名: ${encodedFilename}` });
     console.log('Upload URL:', uploadUrl);
-    console.log('Filename for header:', filename);
+    console.log('Filename for header:', uploadFilename);
     console.log('Encoded filename:', encodedFilename);
 
-    // 构建 RFC 5987 格式的文件名参数
-    const rfc5987Filename = encodeURIComponent(filename).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
-    
-    // 构建安全的 ASCII 文件名（只作为备用）
-    const asciiFilename = filename.split('').map(c => {
-      const code = c.charCodeAt(0);
-      if (code < 128) return c;
-      return '_';
-    }).join('');
-    
-    diagnostics.push({ type: 'info', message: `ASCII 备用文件名: ${asciiFilename}` });
-    console.log('ASCII filename:', asciiFilename);
+    // 因为 uploadFilename 已经是纯 ASCII 了，所以不需要复杂的编码
+    const rfc5987Filename = encodeURIComponent(uploadFilename);
     
     diagnostics.push({ type: 'info', message: `正在上传文件...` });
     console.log('Uploading file...');
     
-    // 上传尝试 - 同时在 URL 和 Content-Disposition 头里指定文件名
+    // 上传尝试 - 上传文件名已经是纯 ASCII 了
     let response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         ...getUploadHeaders(token),
         'Content-Type': 'application/octet-stream',
         'Content-Length': file.size.toString(),
-        'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
+        'Content-Disposition': `attachment; filename="${uploadFilename.replace(/"/g, '\\"')}"`
       },
       body: binaryContent
     });
@@ -637,12 +673,15 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       diagnostics.push({ type: 'success', message: `上传成功！GitHub 保存的文件名: ${asset.name}` });
       console.log('Upload successful, asset name:', asset.name);
       
-      // 检查文件名是否改变
-      if (asset.name !== filename) {
+      // 检查文件名是否改变（应该不会，因为我们用的是纯 ASCII）
+      if (asset.name !== uploadFilename) {
         diagnostics.push({ type: 'warning', message: `注意！文件名被 GitHub 修改了！` });
-        diagnostics.push({ type: 'warning', message: `期望: ${filename}` });
+        diagnostics.push({ type: 'warning', message: `期望: ${uploadFilename}` });
         diagnostics.push({ type: 'warning', message: `实际: ${asset.name}` });
       }
+      
+      diagnostics.push({ type: 'success', message: `原始文件名: ${filename}` });
+      diagnostics.push({ type: 'success', message: `编码文件名: ${uploadFilename}` });
       
       return { success: true, asset, diagnostics };
     } else {
@@ -651,7 +690,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
       diagnostics.push({ type: 'error', message: `GitHub 错误: HTTP ${response.status} - ${errorText}` });
       console.error('Upload error:', response.status, errorText);
       
-      // 如果是 422 already_exists，尝试找到并删除文件
+      // 如果是 422 already_exists，尝试找到并删除相同原始文件名的文件
       if (response.status === 422 && errorText.includes('already_exists')) {
         diagnostics.push({ type: 'warning', message: '文件已存在，尝试查找并删除...' });
         
@@ -664,40 +703,19 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
           const assets = await checkAgainResp.json();
           diagnostics.push({ type: 'info', message: `当前有 ${assets.length} 个文件` });
           
-          // 尝试多种匹配方法
-          let assetToDelete = null;
-          
-          // 方法1: 精确匹配
-          assetToDelete = assets.find(a => a.name === filename);
-          
-          // 方法2: 纯 ASCII 文件名匹配
-          if (!assetToDelete) {
-            assetToDelete = assets.find(a => a.name === asciiFilename);
-          }
-          
-          // 方法3: 扩展名相同 + 文件名开头匹配
-          if (!assetToDelete) {
-            const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
-            const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
-            const baseNameLower = baseName.toLowerCase();
-            
-            assetToDelete = assets.find(a => {
-              const aExt = a.name.includes('.') ? a.name.split('.').pop()?.toLowerCase() : '';
-              const aBaseName = a.name.includes('.') ? a.name.substring(0, a.name.lastIndexOf('.')) : a.name;
-              const aBaseLower = aBaseName.toLowerCase();
-              
-              // 扩展名必须相同
-              if (ext && aExt && ext !== aExt) return false;
-              
-              // 检查文件名开头是否有相似性（前 3 个字符）
-              if (baseNameLower.substring(0, Math.min(3, baseNameLower.length)) === 
-                  aBaseLower.substring(0, Math.min(3, aBaseLower.length))) {
-                return true;
+          // 查找是否有相同原始文件名的编码版本
+          let assetToDelete = assets.find(a => {
+            if (a.name.includes('___ORIGINAL___')) {
+              try {
+                const parts = a.name.split('___ORIGINAL___');
+                const decoded = decodeURIComponent(atob(parts[1]));
+                return decoded === filename;
+              } catch {
+                return false;
               }
-              
-              return false;
-            });
-          }
+            }
+            return a.name === filename;
+          });
           
           if (assetToDelete) {
             diagnostics.push({ type: 'info', message: `找到匹配文件: ${assetToDelete.name}` });
@@ -725,7 +743,7 @@ async function tryUploadFile(file: File, filename: string, releaseId: number, to
                   ...getUploadHeaders(token),
                   'Content-Type': 'application/octet-stream',
                   'Content-Length': file.size.toString(),
-                  'Content-Disposition': `attachment; filename="${asciiFilename.replace(/"/g, '\\"')}"; filename*=UTF-8''${rfc5987Filename}`
+                  'Content-Disposition': `attachment; filename="${uploadFilename.replace(/"/g, '\\"')}"`
                 },
                 body: binaryContent
               });
