@@ -68,7 +68,7 @@ export default {
           const testUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/files`;
           const testResp = await fetch(testUrl, {
             headers: {
-              'Authorization': `Bearer ${githubToken}`,
+              'Authorization': `token ${githubToken}`,
               'Accept': 'application/vnd.github+json'
             }
           });
@@ -88,7 +88,7 @@ export default {
                   const subUrl = `https://api.github.com/repos/${githubOwner}/${githubRepo}/contents/${item.path}`;
                   const subResp = await fetch(subUrl, {
                     headers: {
-                      'Authorization': `Bearer ${githubToken}`,
+                      'Authorization': `token ${githubToken}`,
                       'Accept': 'application/vnd.github+json'
                     }
                   });
@@ -141,7 +141,7 @@ async function handleGetFiles(token: string, owner: string, repo: string): Promi
     const testUrl = `https://api.github.com/repos/${owner}/${repo}/contents/files`;
     const testResp = await fetch(testUrl, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github+json'
       }
     });
@@ -195,7 +195,7 @@ async function fetchGitHubFiles(token: string, owner: string, repo: string): Pro
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github+json'
       }
     });
@@ -311,7 +311,7 @@ async function handleUpload(request: Request, token: string, owner: string, repo
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github+json',
         'Content-Type': 'application/json'
       },
@@ -345,7 +345,7 @@ async function handleDelete(filename: string, folder: string, token: string, own
 
     const getResponse = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github+json'
       }
     });
@@ -360,7 +360,7 @@ async function handleDelete(filename: string, folder: string, token: string, own
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github+json',
         'Content-Type': 'application/json'
       },
@@ -425,7 +425,7 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
     const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `token ${token}`,
         'Accept': 'application/vnd.github.raw'
       }
     });
