@@ -180,10 +180,10 @@
                                 <!-- 批量操作栏 -->
                                 <div class="flex items-center gap-3" id="bulkActions">
                                     <!-- 多选模式开关 -->
-                                    <label class="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" id="multiSelectToggle" class="w-4 h-4 rounded border-white/30 bg-white/5 accent-primary cursor-pointer">
-                                        <span class="text-sm text-white/80">多选模式</span>
-                                    </label>
+                                    <button id="multiSelectToggle" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors flex items-center gap-2">
+                                        <i class="fa fa-check-square-o"></i>
+                                        多选模式
+                                    </button>
                                     <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
                                     <button id="bulkDownloadBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                                         <i class="fa fa-download mr-2"></i>批量下载
@@ -496,6 +496,16 @@
             const selectedCount = selectedFiles.size;
             const hasSelected = selectedCount > 0 && multiSelectMode;
             
+            // 更新多选按钮状态
+            const multiSelectBtn = document.getElementById('multiSelectToggle');
+            if (multiSelectMode) {
+                multiSelectBtn.classList.add('bg-primary/30', 'border', 'border-primary/50');
+                multiSelectBtn.classList.remove('bg-white/10');
+            } else {
+                multiSelectBtn.classList.remove('bg-primary/30', 'border', 'border-primary/50');
+                multiSelectBtn.classList.add('bg-white/10');
+            }
+            
             // 更新选中数量显示
             const selectedCountEl = document.getElementById('selectedCount');
             selectedCountEl.textContent = `已选择 ${selectedCount} 个文件`;
@@ -520,8 +530,8 @@
         });
 
         // 多选模式开关事件
-        document.getElementById('multiSelectToggle').addEventListener('change', (e) => {
-            multiSelectMode = e.target.checked;
+        document.getElementById('multiSelectToggle').addEventListener('click', () => {
+            multiSelectMode = !multiSelectMode;
             if (!multiSelectMode) {
                 selectedFiles.clear(); // 关闭多选模式时清空选中
             }
