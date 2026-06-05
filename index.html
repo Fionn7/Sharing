@@ -53,9 +53,23 @@
                 transition: all 0.6s ease-out;
             }
             .scroll-reveal.active {
-                opacity: 1;
-                transform: translateY(0);
+            opacity: 1;
+            transform: translateY(0);
             }
+        }
+        .category-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .category-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .category-btn.active {
+            background: rgba(14, 165, 233, 0.3);
+            color: white;
+            border-color: rgba(14, 165, 233, 0.5);
         }
     </style>
 </head>
@@ -122,6 +136,43 @@
             <div class="max-w-4xl mx-auto scroll-reveal">
                 <div class="glass rounded-2xl overflow-hidden">
                     <div class="p-6">
+                        <!-- 分类过滤器 -->
+                        <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
+                            <button class="category-btn active px-4 py-2 rounded-lg text-sm transition-colors" data-category="all">
+                                全部
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PDF文档">
+                                📄 PDF
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Word文档">
+                                📝 Word
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Excel表格">
+                                📊 Excel
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PPT演示">
+                                📽️ PPT
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="图片">
+                                🖼️ 图片
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="视频">
+                                🎬 视频
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="音频">
+                                🎵 音频
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="压缩包">
+                                📦 压缩包
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="代码">
+                                💻 代码
+                            </button>
+                            <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="其他文件">
+                                📁 其他
+                            </button>
+                        </div>
+                        
                         <div class="space-y-2" id="fileList">
                             <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
                                 <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
@@ -267,17 +318,29 @@
             }
         }
 
+        let currentCategory = 'all';
+        let allFilesData = [];
+
         function displayFiles(files) {
-            if (files.length === 0) {
+            allFilesData = files;
+            filterFilesByCategory();
+        }
+
+        function filterFilesByCategory() {
+            const filteredFiles = currentCategory === 'all' 
+                ? allFilesData 
+                : allFilesData.filter(file => file.type === currentCategory);
+            
+            if (filteredFiles.length === 0) {
                 fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">暂无文件</div></div>';
                 return;
             }
 
-            fileList.innerHTML = files.map(file => {
+            fileList.innerHTML = filteredFiles.map(file => {
                 const iconClass = getFileIconClass(file.name);
                 const icon = getFileIcon(file.name);
                 return `
-                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" onclick="downloadFile('${escapeHTML(file.name)}', '${escapeHTML(file.folder)}')">
+                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group" onclick="downloadFile('${escapeHTML(file.name)}', '${escapeHTML(file.folder)}')">
                         <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
@@ -286,10 +349,24 @@
                         </div>
                         <div class="text-xs text-white/50">${formatFileSize(file.size)}</div>
                         <div class="text-xs text-white/50 ml-4">${file.last_modified ? new Date(file.last_modified).toLocaleDateString('zh-CN') : '--'}</div>
+                        <button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2" onclick="event.stopPropagation(); deleteFile('${escapeHTML(file.name)}', '${escapeHTML(file.folder)}')">
+                            <i class="fa fa-trash"></i>
+                        </button>
                     </div>
                 `;
             }).join('');
         }
+
+        // 分类过滤器事件监听
+        document.getElementById('categoryFilters').addEventListener('click', function(e) {
+            const btn = e.target.closest('.category-btn');
+            if (btn) {
+                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentCategory = btn.dataset.category;
+                filterFilesByCategory();
+            }
+        });
 
         function downloadFile(filename, folder) {
             const url = `https://raw.githubusercontent.com/Fionn7/Sharing/main/${folder}/${encodeURIComponent(filename)}`;
@@ -300,6 +377,30 @@
             link.click();
             document.body.removeChild(link);
             showToast(`开始下载: ${filename}`, 'success');
+        }
+
+        async function deleteFile(filename, folder) {
+            if (!confirm(`确定要删除文件 "${filename}" 吗？`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(filename)}?category=${encodeURIComponent(folder)}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    showToast(`删除成功: ${filename}`, 'success');
+                    loadFiles();
+                } else {
+                    showToast(`删除失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('删除文件失败:', error);
+                showToast('删除失败，请稍后重试', 'error');
+            }
         }
 
         function handleFiles(files) {
