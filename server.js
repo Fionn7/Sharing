@@ -448,95 +448,8 @@ async function uploadSmallFile(filePath, folder, filename) {
   }
 }
 
-// 分块上传大文件
+// 分块上传大文件（使用 GitHub Git Blob API）
 async function uploadFileInChunks(filePath, folder, filename, fileSize) {
-  try {
-    const headers = {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'sharing-file-backend',
-    };
-
-    // 计算文件 SHA256
-    const oid = await calculateSHA256(filePath);
-    console.log('文件 SHA256:', oid);
-
-    // 1. 创建 LFS 上传会话
-    console.log('创建 LFS 上传会话...');
-    const initUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/lfs/objects/batch`;
-    const initResponse = await fetch(initUrl, {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        operation: 'upload',
-        transfers: ['basic'],
-        objects: [{ oid, size: fileSize }],
-      }),
-    });
-
-    const initData = await initResponse.json();
-    if (!initResponse.ok) {
-      return { ok: false, message: `创建上传会话失败: ${initData.message || initResponse.status}` };
-    }
-
-    const uploadAction = initData.objects[0]?.actions?.upload;
-    if (!uploadAction) {
-      // 文件可能已存在于 LFS 中，直接创建引用
-      console.log('文件已存在于 LFS 中');
-      return await createLFSReference(folder, filename, oid, fileSize);
-    }
-
-    // 2. 分块上传文件
-    console.log('开始分块上传...');
-    const uploadUrl = uploadAction.href;
-    
-    await new Promise((resolve, reject) => {
-      const fileStream = fs.createReadStream(filePath, { highWaterMark: CHUNK_SIZE });
-      let bytesUploaded = 0;
-
-      fileStream.on('data', async (chunk) => {
-        fileStream.pause();
-        try {
-          const response = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/octet-stream',
-              'Content-Length': chunk.length,
-              'Content-Range': `bytes ${bytesUploaded}-${bytesUploaded + chunk.length - 1}/${fileSize}`,
-            },
-            body: chunk,
-          });
-
-          if (!response.ok) {
-            reject(new Error(`上传块失败: ${response.status}`));
-            return;
-          }
-
-          bytesUploaded += chunk.length;
-          console.log(`已上传: ${((bytesUploaded / fileSize) * 100).toFixed(2)}%`);
-          fileStream.resume();
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      fileStream.on('end', resolve);
-      fileStream.on('error', reject);
-    });
-
-    // 3. 创建 LFS 引用
-    return await createLFSReference(folder, filename, oid, fileSize);
-  } catch (error) {
-    return { ok: false, message: error.message };
-  }
-}
-
-// 创建 LFS 文件引用
-async function createLFSReference(folder, filename, oid, size) {
   try {
     const headers = {
       Accept: 'application/vnd.github+json',
@@ -546,40 +459,130 @@ async function createLFSReference(folder, filename, oid, size) {
       'Content-Type': 'application/json',
     };
 
-    // LFS 文件的内容格式
-    const lfsContent = `version https://git-lfs.github.com/spec/v1
-oid sha256:${oid}
-size ${size}
-`;
-    const content = Buffer.from(lfsContent).toString('base64');
+    console.log('使用 Git Blob API 上传大文件...');
 
-    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${folder}/${filename}`;
-    
-    // 检查文件是否已存在
-    const shaRes = await fetch(url, { headers });
-    let sha = null;
-    if (shaRes.ok) {
-      const existing = await shaRes.json();
-      sha = existing.sha;
-    }
+    // 1. 读取文件内容并创建 base64
+    console.log('读取文件内容...');
+    const fileContent = await fs.promises.readFile(filePath);
+    const content = fileContent.toString('base64');
 
-    // 创建或更新文件
-    const response = await fetch(url, {
-      method: 'PUT',
+    // 2. 创建 Git Blob
+    console.log('创建 Git Blob...');
+    const blobUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/blobs`;
+    const blobResponse = await fetch(blobUrl, {
+      method: 'POST',
       headers,
       body: JSON.stringify({
-        message: `Upload LFS file: ${filename}`,
-        content,
-        branch: GITHUB_BRANCH,
-        sha,
+        content: content,
+        encoding: 'base64',
       }),
     });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      return { ok: false, message: `创建引用失败: ${data.message || response.status}` };
+    if (!blobResponse.ok) {
+      const blobData = await blobResponse.json().catch(() => ({}));
+      return { ok: false, message: `创建 Blob 失败: ${blobData.message || blobResponse.status}` };
     }
 
+    const blobData = await blobResponse.json();
+    console.log('Blob 创建成功:', blobData.sha);
+
+    // 3. 获取当前分支的 SHA
+    console.log('获取当前分支 SHA...');
+    const branchUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`;
+    const branchResponse = await fetch(branchUrl, { headers });
+
+    if (!branchResponse.ok) {
+      return { ok: false, message: '获取分支信息失败' };
+    }
+
+    const branchData = await branchResponse.json();
+    const currentTreeSha = branchData.object.sha;
+
+    // 4. 获取当前树
+    console.log('获取当前树...');
+    const treeUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${currentTreeSha}?recursive=1`;
+    const treeResponse = await fetch(treeUrl, { headers });
+
+    if (!treeResponse.ok) {
+      return { ok: false, message: '获取树信息失败' };
+    }
+
+    const treeData = await treeResponse.json();
+    const folderPath = folder.replace(/^files\//, '');
+
+    // 5. 创建新的树节点
+    console.log('创建新的树节点...');
+    const newTreeItem = {
+      path: `${folderPath}/${filename}`,
+      mode: '100644',
+      type: 'blob',
+      sha: blobData.sha,
+    };
+
+    // 检查文件是否已存在
+    const existingItem = treeData.tree.find(item => item.path === `${folderPath}/${filename}`);
+    const newTree = existingItem
+      ? treeData.tree.map(item => item.path === `${folderPath}/${filename}` ? newTreeItem : item)
+      : [...treeData.tree, newTreeItem];
+
+    // 6. 创建新的树
+    console.log('创建新的树...');
+    const createTreeUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees`;
+    const createTreeResponse = await fetch(createTreeUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        base_tree: currentTreeSha,
+        tree: newTree,
+      }),
+    });
+
+    if (!createTreeResponse.ok) {
+      const createTreeData = await createTreeResponse.json().catch(() => ({}));
+      return { ok: false, message: `创建树失败: ${createTreeData.message || createTreeResponse.status}` };
+    }
+
+    const newTreeData = await createTreeResponse.json();
+    console.log('新树创建成功:', newTreeData.sha);
+
+    // 7. 创建新的提交
+    console.log('创建新的提交...');
+    const commitUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/commits`;
+    const commitResponse = await fetch(commitUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: `Upload file: ${filename}`,
+        tree: newTreeData.sha,
+        parents: [currentTreeSha],
+      }),
+    });
+
+    if (!commitResponse.ok) {
+      const commitData = await commitResponse.json().catch(() => ({}));
+      return { ok: false, message: `创建提交失败: ${commitData.message || commitResponse.status}` };
+    }
+
+    const commitData = await commitResponse.json();
+    console.log('提交创建成功:', commitData.sha);
+
+    // 8. 更新分支引用
+    console.log('更新分支引用...');
+    const updateRefUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/refs/heads/${GITHUB_BRANCH}`;
+    const updateRefResponse = await fetch(updateRefUrl, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        sha: commitData.sha,
+      }),
+    });
+
+    if (!updateRefResponse.ok) {
+      const updateRefData = await updateRefResponse.json().catch(() => ({}));
+      return { ok: false, message: `更新分支失败: ${updateRefData.message || updateRefResponse.status}` };
+    }
+
+    console.log('大文件上传成功!');
     return { ok: true };
   } catch (error) {
     return { ok: false, message: error.message };
