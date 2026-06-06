@@ -1,0 +1,12 @@
+name = "sharing"
+compatibility_date = "2026-06-05"
+main = "src/index.ts"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+[vars]
+GITHUB_OWNER = "Fionn7"
+GITHUB_REPO = "Sharing"

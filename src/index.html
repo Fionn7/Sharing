@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sharing - 课题组内部文件共享平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10b981',
+                        secondary: '#8b5cf6',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif', 'Arial', 'Helvetica'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .glass {
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            .glass-light {
+                background: rgba(255, 255, 255, 0.25);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            .gradient-text {
+                background: linear-gradient(90deg, #f8fafc, #cbd5e1);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, rgba(0, 100, 62, 0.15), rgba(0, 0, 0, 0.05));
+            }
+            .scroll-reveal {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .category-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .category-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .category-btn.active {
+            background: rgba(14, 165, 233, 0.3);
+            color: white;
+            border-color: rgba(14, 165, 233, 0.5);
+        }
+    </style>
+</head>
+<body class="font-inter text-white overflow-x-hidden">
+    <div class="fixed inset-0 -z-10">
+        <img src="https://www.nnu.edu.cn/__local/8/34/A4/3A386A880E332A4E876F05144E0_A2A61260_73305.jpg" alt="南京师范大学四季风景" class="w-full h-full object-cover">
+        <div class="absolute inset-0 bg-slate-900/50"></div>
+    </div>
+
+    <nav id="navbar" class="fixed w-full z-50 transition-all duration-300 py-4">
+        <div class="container mx-auto px-6">
+            <div class="glass rounded-full px-6 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+
+                    <span class="text-2xl font-bold gradient-text">Sharing</span>
+                </div>
+                
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#files" class="text-white/80 hover:text-white transition-colors text-sm">文件库</a>
+                    <a href="#upload" class="text-white/80 hover:text-white transition-colors text-sm">上传</a>
+                </div>
+                
+
+            </div>
+        </div>
+    </nav>
+
+    <section id="upload" class="min-h-screen flex items-center pt-24">
+        <div class="container mx-auto px-6">
+            <div class="max-w-3xl mx-auto text-center">
+                <div class="glass rounded-3xl p-10 md:p-16 scroll-reveal">
+                    <div class="w-20 h-20 mx-auto mb-8 bg-white/10 rounded-full flex items-center justify-center">
+                        <i class="fa fa-cloud-upload text-3xl text-white/70"></i>
+                    </div>
+                    <h1 class="text-[clamp(2rem,4vw,3rem)] font-bold mb-4">
+                        拖拽文件到这里上传
+                    </h1>
+                    <p class="text-white/70 text-lg mb-6">
+                        文件将自动分类存储到共享库
+                    </p>
+                    <div id="upload-area" class="glass-light rounded-2xl p-12 hover:bg-white/30 transition-colors cursor-pointer group">
+                        <div class="w-16 h-16 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                            <i class="fa fa-cloud-upload text-3xl text-white/70 group-hover:text-primary transition-colors"></i>
+                        </div>
+                        <p class="text-white/80">释放文件以上传</p>
+                    </div>
+                    <input type="file" id="file-input" class="hidden" multiple>
+                    
+                    <div id="upload-list" class="mt-8 space-y-3 hidden">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="files" class="py-12 md:py-20">
+        <div class="container mx-auto px-4 md:px-6">
+            <div class="text-center mb-8 md:mb-12 scroll-reveal">
+                <div class="glass inline-block rounded-full px-6 py-2 text-sm">
+                    <h2 class="text-xl font-bold">文件库</h2>
+                </div>
+            </div>
+            
+            <div class="flex flex-col lg:flex-row gap-4 md:gap-6 max-w-7xl mx-auto scroll-reveal">
+                <!-- 主文件列表 -->
+                <div class="flex-1">
+                    <div class="glass rounded-2xl overflow-hidden">
+                        <div class="p-4 md:p-6">
+                            <!-- 分类过滤器 -->
+                            <div class="flex flex-wrap gap-1.5 md:gap-2 mb-6" id="categoryFilters">
+                                <button class="category-btn active px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="all">
+                                    全部
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="PDF文档">
+                                    📄 PDF
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="Word文档">
+                                    📝 Word
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="Excel表格">
+                                    📊 Excel
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="PPT演示">
+                                    📽️ PPT
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="图片">
+                                    🖼️ 图片
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="视频">
+                                    🎬 视频
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="音频">
+                                    🎵 音频
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="压缩包">
+                                    📦 压缩包
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="代码">
+                                    💻 代码
+                                </button>
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="其他文件">
+                                    📁 其他
+                                </button>
+                            </div>
+
+                            <!-- 搜索框 + 批量操作栏 -->
+                            <div class="mt-4 glass rounded-xl p-4">
+                                <div class="flex flex-col gap-4">
+                                    <!-- 搜索框 -->
+                                    <div class="relative w-full">
+                                        <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
+                                        <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
+                                    </div>
+                                    
+                                    <!-- 批量操作栏 -->
+                                    <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center" id="bulkActions">
+                                        <span class="text-xs md:text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
+                                        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                                            <button id="bulkDownloadBtn" class="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                                <i class="fa fa-download mr-1 md:mr-2"></i>下载
+                                            </button>
+                                            <button id="bulkDeleteBtn" class="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                                <i class="fa fa-trash mr-1 md:mr-2"></i>删除
+                                            </button>
+                                            <button id="deselectAllBtn" class="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                                取消全选
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-2 mt-4" id="fileList">
+                                <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
+                                    <div class="w-10 h-10 bg-red-100/10 rounded-lg flex items-center justify-center mr-4">
+                                        <i class="fa fa-file-pdf-o text-red-400"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="text-sm">加载中...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧文件预览面板 -->
+                <div class="lg:w-96" id="filePreviewPanel" style="display: none;">
+                    <div class="glass rounded-2xl overflow-hidden sticky top-24">
+                        <div class="p-4 md:p-6">
+                            <div class="flex items-center justify-between mb-4 md:mb-6">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-3" id="previewIconContainer">
+                                        <i class="fa fa-file-o text-white/70" id="previewIcon"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-base md:text-lg font-bold">文件预览</h3>
+                                        <p class="text-xs text-white/50">勾选文件查看详情</p>
+                                    </div>
+                                </div>
+                                <button onclick="hideFilePreviewPanel()" class="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center text-white/60 hover:text-white transition-colors">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                            <div id="filePreviewContent">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-12">
+        <div class="container mx-auto px-6">
+            <div class="glass rounded-2xl p-8">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="flex items-center space-x-2 mb-4 md:mb-0">
+
+                        <span class="text-2xl font-bold gradient-text">Sharing</span>
+                    </div>
+                    
+                    <div class="text-white/70 text-sm text-center md:text-right">
+                        <p>© 2026 Sharing. 仅供内部使用</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        window.addEventListener('scroll', function() {
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('py-2');
+                navbar.classList.remove('py-4');
+            } else {
+                navbar.classList.add('py-4');
+                navbar.classList.remove('py-2');
+            }
+        });
+
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadList = document.getElementById('upload-list');
+        const fileList = document.getElementById('fileList');
+        
+        // 全局变量
+        let currentCategory = 'all';
+        let allFilesData = [];
+        let searchQuery = '';
+        let selectedFiles = new Set();
+        let currentDisplayedFiles = []; // 跟踪当前页显示的文件
+        let recentlyUploadedFiles = []; // 跟踪最近上传的文件名
+        let diagnosticLogs = []; // 诊断日志
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('border-primary');
+            uploadArea.classList.add('bg-primary/10');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/10');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/10');
+            if (e.dataTransfer.files.length > 0) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFiles(fileInput.files);
+            }
+        });
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0 || !bytes) return '--';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 估算上传时间
+        function estimateUploadTime(fileSizeBytes) {
+            const avgUploadSpeedKBps = 500; // 假设平均上传速度 500 KB/s
+            const estimatedSeconds = Math.ceil(fileSizeBytes / (avgUploadSpeedKBps * 1024));
+            
+            if (estimatedSeconds < 60) {
+                return `预计需要 ${estimatedSeconds} 秒`;
+            } else {
+                const minutes = Math.floor(estimatedSeconds / 60);
+                const seconds = estimatedSeconds % 60;
+                if (seconds === 0) {
+                    return `预计需要 ${minutes} 分钟`;
+                } else {
+                    return `预计需要 ${minutes} 分钟 ${seconds} 秒`;
+                }
+            }
+        }
+
+        function getFileIconClass(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['pdf'].includes(ext)) return 'text-red-400';
+            if (['doc', 'docx'].includes(ext)) return 'text-blue-400';
+            if (['xls', 'xlsx'].includes(ext)) return 'text-green-400';
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'text-purple-400';
+            if (['mp4', 'avi', 'mov', 'wmv'].includes(ext)) return 'text-yellow-400';
+            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'text-orange-400';
+            if (['mp3', 'wav', 'flac'].includes(ext)) return 'text-pink-400';
+            return 'text-gray-400';
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['pdf'].includes(ext)) return 'fa-file-pdf-o';
+            if (['doc', 'docx'].includes(ext)) return 'fa-file-word-o';
+            if (['xls', 'xlsx'].includes(ext)) return 'fa-file-excel-o';
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'fa-file-image-o';
+            if (['mp4', 'avi', 'mov', 'wmv'].includes(ext)) return 'fa-file-video-o';
+            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'fa-file-archive-o';
+            if (['mp3', 'wav', 'flac'].includes(ext)) return 'fa-file-audio-o';
+            return 'fa-file-o';
+        }
+
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const data = await response.json();
+                
+                if (data.ok && data.files && data.files.length > 0) {
+                    // 清空最近上传文件列表（不再需要诊断功能）
+                    recentlyUploadedFiles = [];
+                    displayFiles(data.files);
+                } else {
+                    let errorMsg = '暂无文件';
+                    if (!data.ok) {
+                        errorMsg = data.message || '获取文件列表失败';
+                    } else if (data.files && data.files.length === 0) {
+                        errorMsg = data.message || '文件库为空';
+                    }
+                    fileList.innerHTML = `<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">${errorMsg}</div></div>`;
+                }
+            } catch (error) {
+                fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">加载失败，请检查网络连接或后端服务</div></div>';
+            }
+        }
+        
+        // 显示文件预览面板（支持多个文件）
+        function showFilePreviewPanel(files) {
+            const panel = document.getElementById('filePreviewPanel');
+            const content = document.getElementById('filePreviewContent');
+            const previewIcon = document.getElementById('previewIcon');
+            const previewIconContainer = document.getElementById('previewIconContainer');
+            
+            // 最多显示5个文件
+            const maxDisplay = 5;
+            const displayFiles = files.slice(0, maxDisplay);
+            const hasMore = files.length > maxDisplay;
+            
+            // 更新面板图标（使用第一个文件的图标）
+            if (displayFiles.length > 0) {
+                const firstFile = displayFiles[0];
+                const icon = getFileIcon(firstFile.name);
+                const iconClass = getFileIconClass(firstFile.name);
+                previewIcon.className = `fa ${icon} ${iconClass}`;
+                previewIconContainer.className = `w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-3`;
+            }
+            
+            // 生成预览内容
+            let html = `
+                <div class="space-y-4">
+            `;
+            
+            displayFiles.forEach((file, index) => {
+                const icon = getFileIcon(file.name);
+                const iconClass = getFileIconClass(file.name);
+                const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
+                
+                html += `
+                    <!-- 文件 ${index + 1} -->
+                    <div class="bg-white/5 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                <i class="fa ${icon} ${iconClass}"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-medium break-all leading-tight">${escapeHTML(file.name)}</div>
+                                <div class="text-xs text-white/50">${file.folder || '未分类'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-1.5 text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-white/50">大小</span>
+                                <span class="text-right">${formatFileSize(file.size)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-white/50">修改时间</span>
+                                <span class="text-right">${dateStr}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-white/50">类型</span>
+                                <span class="text-right">${file.type || '其他文件'}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs transition-colors">
+                                <i class="fa fa-download mr-1"></i>下载
+                            </button>
+                            <button onclick="deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-xs transition-colors text-red-300">
+                                <i class="fa fa-trash mr-1"></i>删除
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 如果有更多文件，显示提示
+            if (hasMore) {
+                html += `
+                    <div class="text-center text-xs text-white/50 py-2">
+                        还有 ${files.length - maxDisplay} 个文件未显示
+                    </div>
+                `;
+            }
+            
+            html += `
+                </div>
+            `;
+            
+            content.innerHTML = html;
+            panel.style.display = 'block';
+        }
+        
+        // 隐藏文件预览面板
+        function hideFilePreviewPanel() {
+            document.getElementById('filePreviewPanel').style.display = 'none';
+        }
+        
+        // 更新文件预览
+        function updateFilePreview() {
+            const panel = document.getElementById('filePreviewPanel');
+            
+            if (selectedFiles.size === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            // 获取所有选中的文件
+            const selectedFilesData = Array.from(selectedFiles)
+                .map(path => allFilesData.find(f => f.path === path))
+                .filter(Boolean);
+            
+            if (selectedFilesData.length > 0) {
+                showFilePreviewPanel(selectedFilesData);
+            }
+        }
+
+        function displayFiles(files) {
+            allFilesData = files;
+            filterFiles();
+        }
+
+        function filterFiles() {
+            let filteredFiles = allFilesData;
+            
+            // 按分类过滤
+            if (currentCategory !== 'all') {
+                filteredFiles = filteredFiles.filter(file => file.type === currentCategory);
+            }
+            
+            // 按搜索关键词过滤
+            if (searchQuery.trim()) {
+                const query = searchQuery.trim().toLowerCase();
+                filteredFiles = filteredFiles.filter(file => {
+                    // 文件名搜索
+                    if (file.name.toLowerCase().includes(query)) return true;
+                    // 日期搜索（支持中文日期如"2026/6/6"或"6月"）
+                    if (file.last_modified) {
+                        const dateStr = formatDate(file.last_modified);
+                        if (dateStr.includes(query)) return true;
+                        const dateObj = new Date(file.last_modified);
+                        const month = (dateObj.getMonth() + 1) + '月';
+                        const day = dateObj.getDate() + '日';
+                        if (month.includes(query) || day.includes(query)) return true;
+                    }
+                    return false;
+                });
+            }
+            
+            renderFileList(filteredFiles);
+        }
+
+        function renderFileList(files) {
+            currentDisplayedFiles = files;
+            
+            if (files.length === 0) {
+                fileList.innerHTML = '<div class="flex items-center p-3 rounded-lg"><div class="flex-1 text-center text-sm text-white/70">暂无文件</div></div>';
+                updateBulkActions();
+                return;
+            }
+
+            const html = files.map((file, index) => {
+                const iconClass = getFileIconClass(file.name);
+                const icon = getFileIcon(file.name);
+                const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
+                const isSelected = selectedFiles.has(file.path);
+                
+                return `
+                    <div class="flex p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-sky-500/30 border border-sky-500/50' : ''}" data-path="${escapeHTML(file.path)}">
+                        <div class="flex items-start mr-3 mt-1">
+                            <input type="checkbox" class="w-5 h-5 cursor-pointer rounded border-white/30 bg-white/10 text-sky-500 focus:ring-sky-500/50 focus:ring-offset-0" ${isSelected ? 'checked' : ''} onchange="toggleSelectFile('${escapeHTML(file.path)}')">
+                        </div>
+                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')">
+                            <i class="fa ${icon} ${iconClass}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')">
+                            <div class="text-sm break-all leading-tight">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1 inline-block mt-1">大文件</span>' : ''}</div>
+                            <div class="flex items-center mt-1 text-xs text-white/50 space-x-3">
+                                <span>${formatFileSize(file.size)}</span>
+                                <span>${dateStr}</span>
+                            </div>
+                        </div>
+                        <button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2 flex-shrink-0" onclick="event.stopPropagation(); deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            
+            fileList.innerHTML = html;
+            updateBulkActions();
+        }
+
+        // 切换文件选中状态
+        function toggleSelectFile(path) {
+            if (selectedFiles.has(path)) {
+                selectedFiles.delete(path);
+            } else {
+                selectedFiles.add(path);
+            }
+            updateBulkActions();
+            updateFilePreview();
+            filterFiles();
+        }
+
+        // 分类过滤器事件监听
+        document.getElementById('categoryFilters').addEventListener('click', function(e) {
+            const btn = e.target.closest('.category-btn');
+            if (btn) {
+                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentCategory = btn.dataset.category;
+                filterFiles();
+            }
+        });
+
+        // 搜索框事件监听
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            searchQuery = e.target.value;
+            filterFiles();
+        });
+
+        // 更新批量操作UI
+        function updateBulkActions() {
+            const selectedCount = selectedFiles.size;
+            const hasSelected = selectedCount > 0;
+            const hasFiles = currentDisplayedFiles.length > 0;
+            
+            // 更新选中数量显示
+            const selectedCountEl = document.getElementById('selectedCount');
+            selectedCountEl.textContent = `已选择 ${selectedCount} 个文件`;
+            selectedCountEl.className = hasSelected ? 'text-sm text-white font-medium' : 'text-sm text-white/60';
+            
+            // 更新按钮状态
+            const bulkDownloadBtn = document.getElementById('bulkDownloadBtn');
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const deselectAllBtn = document.getElementById('deselectAllBtn');
+            
+            // 批量下载/删除只在有选中时可用
+            [bulkDownloadBtn, bulkDeleteBtn].forEach(btn => {
+                btn.disabled = !hasSelected;
+            });
+            
+            // 全选/取消全选按钮始终可用（只要有文件）
+            deselectAllBtn.disabled = !hasFiles;
+            
+            // 根据选中状态切换按钮文本
+            if (hasSelected) {
+                deselectAllBtn.textContent = '取消全选';
+            } else {
+                deselectAllBtn.textContent = '全选';
+            }
+        }
+
+        // 初始化批量操作按钮事件
+        document.getElementById('bulkDownloadBtn').addEventListener('click', bulkDownload);
+        document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDelete);
+        document.getElementById('deselectAllBtn').addEventListener('click', () => {
+            const hasSelected = selectedFiles.size > 0;
+            if (hasSelected) {
+                // 取消全选
+                selectedFiles.clear();
+            } else {
+                // 全选当前页所有文件
+                currentDisplayedFiles.forEach(file => {
+                    selectedFiles.add(file.path);
+                });
+            }
+            updateBulkActions();
+            updateFilePreview();
+            filterFiles();
+        });
+
+        // 批量下载
+        async function bulkDownload() {
+            const filesToDownload = allFilesData.filter(file => selectedFiles.has(file.path));
+            if (filesToDownload.length === 0) return;
+            
+            showToast(`正在下载 ${filesToDownload.length} 个文件...`, 'info');
+            
+            for (const file of filesToDownload) {
+                downloadFile(file.path, file.name);
+                // 延迟一下，避免同时下载太多
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+
+        // 批量删除
+        async function bulkDelete() {
+            const filesToDelete = allFilesData.filter(file => selectedFiles.has(file.path));
+            if (filesToDelete.length === 0) return;
+            
+            if (!confirm(`确定要删除 ${filesToDelete.length} 个文件吗？此操作不可恢复！`)) {
+                return;
+            }
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const file of filesToDelete) {
+                try {
+                    const response = await fetch(`/api/files/${encodeURIComponent(file.path.startsWith('release/') ? file.path : file.name)}?category=${encodeURIComponent(file.folder)}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.ok) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch {
+                    failCount++;
+                }
+            }
+            
+            selectedFiles.clear();
+            loadFiles();
+            
+            if (failCount === 0) {
+                showToast(`成功删除 ${successCount} 个文件`, 'success');
+            } else {
+                showToast(`删除完成：成功 ${successCount} 个，失败 ${failCount} 个`, 'warning');
+            }
+        }
+
+        function formatDate(dateStr) {
+            try {
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) return '--';
+                return date.toLocaleDateString('zh-CN');
+            } catch {
+                return '--';
+            }
+        }
+
+        function downloadFile(path, displayName) {
+            // 通过 Worker 代理下载，直接传 path
+            const url = `/download/${path.startsWith('release/') ? path : path.replace(/^\//, '')}`;
+            // 使用用户看到的文件名，如果没有提供则从路径提取
+            let filename = displayName || (path.startsWith('release/') ? 'download' : path.split('/').pop());
+            
+            // 尝试解码URL编码的文件名（处理后端返回的编码问题）
+            try {
+                const decoded = decodeURIComponent(filename);
+                // 只有当解码后的文件名看起来更合理时才使用解码结果
+                if (decoded !== filename && !decoded.includes('%') && decoded.length > 0) {
+                    filename = decoded;
+                }
+            } catch (e) {
+                // 如果解码失败，保持原文件名
+            }
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('开始下载', 'success');
+        }
+
+        async function deleteFile(path, folder, name) {
+            if (!confirm(`确定要删除文件 "${name}" 吗？`)) {
+                return;
+            }
+
+            try {
+                const filenameParam = path.startsWith('release/') ? path : name;
+                const response = await fetch(`/api/files/${encodeURIComponent(filenameParam)}?category=${encodeURIComponent(folder)}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    showToast(`删除成功: ${name}`, 'success');
+                    loadFiles();
+                } else {
+                    showToast(`删除失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showToast('删除失败，请稍后重试', 'error');
+            }
+        }
+
+        function handleFiles(files) {
+            uploadList.classList.remove('hidden');
+            
+            Array.from(files).forEach(file => {
+                const estimatedTime = estimateUploadTime(file.size);
+                const fileSizeStr = formatFileSize(file.size);
+                
+                const uploadItem = document.createElement('div');
+                uploadItem.className = 'glass flex items-center p-4 rounded-lg';
+                uploadItem.innerHTML = `
+                    <div class="w-10 h-10 bg-blue-100/20 rounded-lg flex items-center justify-center mr-4">
+                        <i class="fa ${getFileIcon(file.name)} ${getFileIconClass(file.name)}"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-medium text-sm">${escapeHTML(file.name)}</div>
+                        <div class="text-xs text-white/60 mt-1">${fileSizeStr} · ${estimatedTime}</div>
+                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-2">
+                            <div class="progress-bar h-full gradient-bg w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-white/70 ml-4 progress-text">0%</div>
+                    <button class="retry-btn ml-3 px-3 py-1 bg-sky-500 hover:bg-sky-600 text-white text-sm rounded-lg transition-colors hidden">
+                        <i class="fa fa-refresh mr-1"></i>重试
+                    </button>
+                    <button class="remove-btn ml-2 px-3 py-1 bg-white/10 hover:bg-white/20 text-white/70 text-sm rounded-lg transition-colors hidden">
+                        <i class="fa fa-times mr-1"></i>移除
+                    </button>
+                `;
+                uploadList.appendChild(uploadItem);
+                
+                const progressBar = uploadItem.querySelector('.progress-bar');
+                const progressText = uploadItem.querySelector('.progress-text');
+                const retryBtn = uploadItem.querySelector('.retry-btn');
+                const removeBtn = uploadItem.querySelector('.remove-btn');
+                let progress = 0;
+                
+                // 存储文件引用
+                uploadItem._file = file;
+                
+                // 重试按钮点击事件
+                retryBtn.addEventListener('click', () => {
+                    retryUpload(uploadItem, file, progressBar, progressText, retryBtn, removeBtn);
+                });
+                
+                // 移除按钮点击事件
+                removeBtn.addEventListener('click', () => {
+                    uploadItem.remove();
+                });
+                
+                const interval = setInterval(() => {
+                    progress += Math.random() * 15;
+                    if (progress >= 100) {
+                        progress = 100;
+                        clearInterval(interval);
+                        progressText.textContent = '上传中...';
+                        uploadFile(file, progressBar, progressText, retryBtn, removeBtn);
+                    } else {
+                        progressText.textContent = Math.round(progress) + '%';
+                    }
+                    progressBar.style.width = progress + '%';
+                }, 200);
+            });
+        }
+
+        async function retryUpload(uploadItem, file, progressBar, progressText, retryBtn, removeBtn) {
+            // 重置状态
+            progressBar.classList.remove('bg-red-500');
+            progressBar.classList.add('gradient-bg');
+            progressBar.style.width = '0%';
+            retryBtn.classList.add('hidden');
+            removeBtn.classList.add('hidden');
+            
+            // 重新开始上传
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    progressText.textContent = '上传中...';
+                    uploadFile(file, progressBar, progressText, retryBtn, removeBtn);
+                } else {
+                    progressText.textContent = Math.round(progress) + '%';
+                }
+                progressBar.style.width = progress + '%';
+            }, 150);
+        }
+
+        async function uploadFile(file, progressBar, progressText, retryBtn, removeBtn) {
+            try {
+                const isLargeFile = file.size >= 1024 * 1024;
+                
+                progressText.textContent = '上传中...';
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('filename', file.name);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 300000);
+                
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    progressText.textContent = '完成';
+                    showToast(`上传成功: ${file.name}`, 'success');
+                    setTimeout(() => {
+                        const uploadItem = progressBar.closest('.glass');
+                        if (uploadItem) uploadItem.remove();
+                        setTimeout(() => loadFiles(), 2000);
+                    }, 1000);
+                } else {
+                    progressText.textContent = '失败';
+                    progressBar.classList.remove('gradient-bg');
+                    progressBar.classList.add('bg-red-500');
+                    if (retryBtn) retryBtn.classList.remove('hidden');
+                    if (removeBtn) removeBtn.classList.remove('hidden');
+                    showToast(`上传失败: ${data.message || '未知错误'}`, 'error');
+                }
+            } catch (error) {
+                progressText.textContent = error.name === 'AbortError' ? '超时' : '失败';
+                progressBar.classList.remove('gradient-bg');
+                progressBar.classList.add('bg-red-500');
+                if (retryBtn) retryBtn.classList.remove('hidden');
+                if (removeBtn) removeBtn.classList.remove('hidden');
+                showToast(error.name === 'AbortError' ? '上传超时，请重试' : '上传失败，请稍后重试', 'error');
+            }
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-20 right-6 px-4 py-3 rounded-lg shadow-lg z-50 ' +
+                (type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', loadFiles);
+    </script>
+</body>
+</html>
