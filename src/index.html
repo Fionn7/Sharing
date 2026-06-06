@@ -724,7 +724,19 @@
             // 通过 Worker 代理下载，直接传 path
             const url = `/download/${path.startsWith('release/') ? path : path.replace(/^\//, '')}`;
             // 使用用户看到的文件名，如果没有提供则从路径提取
-            const filename = displayName || (path.startsWith('release/') ? 'download' : path.split('/').pop());
+            let filename = displayName || (path.startsWith('release/') ? 'download' : path.split('/').pop());
+            
+            // 尝试解码URL编码的文件名（处理后端返回的编码问题）
+            try {
+                const decoded = decodeURIComponent(filename);
+                // 只有当解码后的文件名看起来更合理时才使用解码结果
+                if (decoded !== filename && !decoded.includes('%') && decoded.length > 0) {
+                    filename = decoded;
+                }
+            } catch (e) {
+                // 如果解码失败，保持原文件名
+            }
+            
             const link = document.createElement('a');
             link.href = url;
             link.download = filename;
