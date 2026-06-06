@@ -450,7 +450,7 @@
                         
                         <!-- 操作按钮 -->
                         <div class="flex gap-2 mt-3">
-                            <button onclick="downloadFile('${escapeHTML(file.path)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs transition-colors">
+                            <button onclick="downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs transition-colors">
                                 <i class="fa fa-download mr-1"></i>下载
                             </button>
                             <button onclick="deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-xs transition-colors text-red-300">
@@ -557,10 +557,10 @@
                         <div class="flex items-start mr-3 mt-1">
                             <input type="checkbox" class="w-5 h-5 cursor-pointer rounded border-white/30 bg-white/10 text-sky-500 focus:ring-sky-500/50 focus:ring-offset-0" ${isSelected ? 'checked' : ''} onchange="toggleSelectFile('${escapeHTML(file.path)}')">
                         </div>
-                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
+                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
-                        <div class="flex-1 min-w-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
+                        <div class="flex-1 min-w-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')">
                             <div class="text-sm break-all leading-tight">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1 inline-block mt-1">大文件</span>' : ''}</div>
                             <div class="flex items-center mt-1 text-xs text-white/50 space-x-3">
                                 <span>${formatFileSize(file.size)}</span>
@@ -666,7 +666,7 @@
             showToast(`正在下载 ${filesToDownload.length} 个文件...`, 'info');
             
             for (const file of filesToDownload) {
-                downloadFile(file.path);
+                downloadFile(file.path, file.name);
                 // 延迟一下，避免同时下载太多
                 await new Promise(resolve => setTimeout(resolve, 300));
             }
@@ -720,10 +720,11 @@
             }
         }
 
-        function downloadFile(path) {
+        function downloadFile(path, displayName) {
             // 通过 Worker 代理下载，直接传 path
             const url = `/download/${path.startsWith('release/') ? path : path.replace(/^\//, '')}`;
-            const filename = path.startsWith('release/') ? 'download' : path.split('/').pop();
+            // 使用用户看到的文件名，如果没有提供则从路径提取
+            const filename = displayName || (path.startsWith('release/') ? 'download' : path.split('/').pop());
             const link = document.createElement('a');
             link.href = url;
             link.download = filename;
