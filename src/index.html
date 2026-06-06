@@ -120,77 +120,79 @@
         </div>
     </section>
 
-    <section id="files" class="py-20">
-        <div class="container mx-auto px-6">
-            <div class="text-center mb-12 scroll-reveal">
+    <section id="files" class="py-12 md:py-20">
+        <div class="container mx-auto px-4 md:px-6">
+            <div class="text-center mb-8 md:mb-12 scroll-reveal">
                 <div class="glass inline-block rounded-full px-6 py-2 text-sm">
                     <h2 class="text-xl font-bold">文件库</h2>
                 </div>
             </div>
             
-            <div class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto scroll-reveal">
+            <div class="flex flex-col lg:flex-row gap-4 md:gap-6 max-w-7xl mx-auto scroll-reveal">
                 <!-- 主文件列表 -->
                 <div class="flex-1">
                     <div class="glass rounded-2xl overflow-hidden">
-                        <div class="p-6">
+                        <div class="p-4 md:p-6">
                             <!-- 分类过滤器 -->
-                            <div class="flex flex-wrap gap-2 mb-6" id="categoryFilters">
-                                <button class="category-btn active px-4 py-2 rounded-lg text-sm transition-colors" data-category="all">
+                            <div class="flex flex-wrap gap-1.5 md:gap-2 mb-6" id="categoryFilters">
+                                <button class="category-btn active px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="all">
                                     全部
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PDF文档">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="PDF文档">
                                     📄 PDF
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Word文档">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="Word文档">
                                     📝 Word
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="Excel表格">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="Excel表格">
                                     📊 Excel
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="PPT演示">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="PPT演示">
                                     📽️ PPT
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="图片">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="图片">
                                     🖼️ 图片
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="视频">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="视频">
                                     🎬 视频
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="音频">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="音频">
                                     🎵 音频
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="压缩包">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="压缩包">
                                     📦 压缩包
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="代码">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="代码">
                                     💻 代码
                                 </button>
-                                <button class="category-btn px-4 py-2 rounded-lg text-sm transition-colors" data-category="其他文件">
+                                <button class="category-btn px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors" data-category="其他文件">
                                     📁 其他
                                 </button>
                             </div>
 
                             <!-- 搜索框 + 批量操作栏 -->
                             <div class="mt-4 glass rounded-xl p-4">
-                                <div class="flex flex-col md:flex-row gap-4 items-center">
+                                <div class="flex flex-col gap-4">
                                     <!-- 搜索框 -->
-                                    <div class="relative flex-1 w-full">
+                                    <div class="relative w-full">
                                         <input type="text" id="searchInput" placeholder="搜索文件名或时间..." class="w-full px-4 py-3 pl-12 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors">
                                         <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
                                     </div>
                                     
                                     <!-- 批量操作栏 -->
-                                    <div class="flex items-center gap-3" id="bulkActions">
-                                        <span class="text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
-                                        <button id="bulkDownloadBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                            <i class="fa fa-download mr-2"></i>下载
-                                        </button>
-                                        <button id="bulkDeleteBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                            <i class="fa fa-trash mr-2"></i>删除
-                                        </button>
-                                        <button id="deselectAllBtn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                            取消全选
-                                        </button>
+                                    <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center" id="bulkActions">
+                                        <span class="text-xs md:text-sm text-white/60" id="selectedCount">已选择 0 个文件</span>
+                                        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                                            <button id="bulkDownloadBtn" class="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                                <i class="fa fa-download mr-1 md:mr-2"></i>下载
+                                            </button>
+                                            <button id="bulkDeleteBtn" class="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                                <i class="fa fa-trash mr-1 md:mr-2"></i>删除
+                                            </button>
+                                            <button id="deselectAllBtn" class="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs md:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                                取消全选
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -212,14 +214,14 @@
                 <!-- 右侧文件预览面板 -->
                 <div class="lg:w-96" id="filePreviewPanel" style="display: none;">
                     <div class="glass rounded-2xl overflow-hidden sticky top-24">
-                        <div class="p-6">
-                            <div class="flex items-center justify-between mb-6">
+                        <div class="p-4 md:p-6">
+                            <div class="flex items-center justify-between mb-4 md:mb-6">
                                 <div class="flex items-center">
                                     <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-3" id="previewIconContainer">
                                         <i class="fa fa-file-o text-white/70" id="previewIcon"></i>
                                     </div>
                                     <div>
-                                        <h3 class="text-lg font-bold">文件预览</h3>
+                                        <h3 class="text-base md:text-lg font-bold">文件预览</h3>
                                         <p class="text-xs text-white/50">勾选文件查看详情</p>
                                     </div>
                                 </div>
@@ -403,55 +405,55 @@
             previewIconContainer.className = `w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-3`;
             
             // 生成预览内容
-            const html = `
-                <div class="space-y-4">
-                    <!-- 文件基本信息 -->
-                    <div class="bg-white/5 rounded-lg p-4">
-                        <div class="flex items-center mb-4">
-                            <div class="w-14 h-14 bg-white/10 rounded-lg flex items-center justify-center mr-4">
-                                <i class="fa ${icon} ${iconClass} text-xl"></i>
+                const html = `
+                    <div class="space-y-4">
+                        <!-- 文件基本信息 -->
+                        <div class="bg-white/5 rounded-lg p-4">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 md:w-14 md:h-14 bg-white/10 rounded-lg flex items-center justify-center mr-3 md:mr-4 flex-shrink-0">
+                                    <i class="fa ${icon} ${iconClass} text-lg md:text-xl"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm md:text-base font-medium mb-1 break-all leading-tight">${escapeHTML(file.name)}</div>
+                                    <div class="text-xs text-white/50">${file.folder || '未分类'}</div>
+                                </div>
                             </div>
-                            <div class="flex-1">
-                                <div class="text-sm font-medium mb-1">${escapeHTML(file.name)}</div>
-                                <div class="text-xs text-white/50">${file.folder || '未分类'}</div>
+                            
+                            <div class="space-y-2 text-xs md:text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-white/50">文件大小</span>
+                                    <span class="text-right">${formatFileSize(file.size)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-white/50">修改时间</span>
+                                    <span class="text-right">${dateStr}</span>
+                                </div>
+                                ${file.isLargeFile ? `
+                                <div class="flex justify-between">
+                                    <span class="text-white/50">文件类型</span>
+                                    <span class="text-purple-300 text-right">大文件</span>
+                                </div>
+                                ` : ''}
+                                <div class="flex justify-between">
+                                    <span class="text-white/50">文件类型</span>
+                                    <span class="text-right">${file.type || '其他文件'}</span>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="space-y-3 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-white/50">文件大小</span>
-                                <span>${formatFileSize(file.size)}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-white/50">修改时间</span>
-                                <span>${dateStr}</span>
-                            </div>
-                            ${file.isLargeFile ? `
-                            <div class="flex justify-between">
-                                <span class="text-white/50">文件类型</span>
-                                <span class="text-purple-300">大文件</span>
-                            </div>
-                            ` : ''}
-                            <div class="flex justify-between">
-                                <span class="text-white/50">文件类型</span>
-                                <span>${file.type || '其他文件'}</span>
-                            </div>
+                        <!-- 操作按钮 -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="downloadFile('${escapeHTML(file.path)}')" class="flex items-center justify-center px-3 md:px-4 py-2.5 md:py-3 bg-white/10 hover:bg-white/20 rounded-lg text-xs md:text-sm transition-colors">
+                                <i class="fa fa-download mr-1 md:mr-2"></i>
+                                下载
+                            </button>
+                            <button onclick="deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')" class="flex items-center justify-center px-3 md:px-4 py-2.5 md:py-3 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-xs md:text-sm transition-colors text-red-300">
+                                <i class="fa fa-trash mr-1 md:mr-2"></i>
+                                删除
+                            </button>
                         </div>
                     </div>
-                    
-                    <!-- 操作按钮 -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <button onclick="downloadFile('${escapeHTML(file.path)}')" class="flex items-center justify-center px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors">
-                            <i class="fa fa-download mr-2"></i>
-                            下载文件
-                        </button>
-                        <button onclick="deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')" class="flex items-center justify-center px-4 py-3 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-sm transition-colors text-red-300">
-                            <i class="fa fa-trash mr-2"></i>
-                            删除文件
-                        </button>
-                    </div>
-                </div>
-            `;
+                `;
             
             content.innerHTML = html;
             panel.style.display = 'block';
@@ -531,19 +533,21 @@
                 const isSelected = selectedFiles.has(file.path);
                 
                 return `
-                    <div class="flex items-center p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-sky-500/30 border border-sky-500/50' : ''}" data-path="${escapeHTML(file.path)}">
-                        <div class="mr-3 flex items-center">
+                    <div class="flex p-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${isSelected ? 'bg-sky-500/30 border border-sky-500/50' : ''}" data-path="${escapeHTML(file.path)}">
+                        <div class="flex items-start mr-3 mt-1">
                             <input type="checkbox" class="w-5 h-5 cursor-pointer rounded border-white/30 bg-white/10 text-sky-500 focus:ring-sky-500/50 focus:ring-offset-0" ${isSelected ? 'checked' : ''} onchange="toggleSelectFile('${escapeHTML(file.path)}')">
                         </div>
-                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
+                        <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
                             <i class="fa ${icon} ${iconClass}"></i>
                         </div>
-                        <div class="flex-1" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
-                            <div class="text-sm">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1">大文件</span>' : ''}</div>
+                        <div class="flex-1 min-w-0" onclick="event.stopPropagation(); downloadFile('${escapeHTML(file.path)}')">
+                            <div class="text-sm break-all leading-tight">${escapeHTML(file.name)}${file.isLargeFile ? ' <span class="text-xs bg-purple-500/30 px-1 py-0.5 rounded text-purple-300 ml-1 inline-block mt-1">大文件</span>' : ''}</div>
+                            <div class="flex items-center mt-1 text-xs text-white/50 space-x-3">
+                                <span>${formatFileSize(file.size)}</span>
+                                <span>${dateStr}</span>
+                            </div>
                         </div>
-                        <div class="text-xs text-white/50">${formatFileSize(file.size)}</div>
-                        <div class="text-xs text-white/50 ml-4">${dateStr}</div>
-                        <button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2" onclick="event.stopPropagation(); deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')">
+                        <button class="ml-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 p-2 flex-shrink-0" onclick="event.stopPropagation(); deleteFile('${escapeHTML(file.path)}', '${escapeHTML(file.folder)}', '${escapeHTML(file.name)}')">
                             <i class="fa fa-trash"></i>
                         </button>
                     </div>
