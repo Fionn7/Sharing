@@ -984,6 +984,21 @@ function getFolder(ext: string): string {
   return folders[ext] || 'files/others';
 }
 
+// 解码存储的文件名，提取原始文件名
+function decodeStoredFilename(storedName: string): string {
+  if (storedName.includes('___ORIGINAL___')) {
+    try {
+      const parts = storedName.split('___ORIGINAL___');
+      const decoded = decodeURIComponent(atob(parts[1]));
+      return decoded;
+    } catch {
+      // 如果解码失败，返回原始存储名
+      return storedName;
+    }
+  }
+  return storedName;
+}
+
 async function handleDownload(path: string, token: string, owner: string, repo: string): Promise<Response> {
   if (!token) {
     return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
@@ -1016,8 +1031,25 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
           const asset = assets.find((a: any) => a.id.toString() === assetId);
           
           if (asset) {
-            // 重定向到 GitHub 下载链接
-            return Response.redirect(asset.browser_download_url, 302);
+            // 🔧 解码原始文件名，确保下载时使用正确的文件名
+            const originalFilename = decodeStoredFilename(asset.name);
+            
+            // 代理下载文件，设置正确的 Content-Disposition 头
+            const downloadResponse = await fetch(asset.browser_download_url, {
+              headers: getGitHubHeaders(token)
+            });
+            
+            if (downloadResponse.ok) {
+              const contentType = downloadResponse.headers.get('content-type') || 'application/octet-stream';
+              
+              return new Response(downloadResponse.body, {
+                headers: {
+                  'Content-Type': contentType,
+                  'Content-Disposition': `attachment; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
+                  ...corsHeaders
+                }
+              });
+            }
           }
         }
       }
@@ -1038,13 +1070,15 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
       return jsonResponse({ ok: false, message: '文件不存在' }, 404);
     }
 
-    const filename = path.split('/').pop() || 'download';
+    // 🔧 解码原始文件名
+    const storedFilename = path.split('/').pop() || 'download';
+    const originalFilename = decodeStoredFilename(storedFilename);
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
     return new Response(response.body, {
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
         ...corsHeaders
       }
     });
