@@ -1099,10 +1099,15 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
     return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
   }
 
+  console.log('=== handlePreview called ===');
+  console.log('Preview path:', path);
+  console.log('Is release path:', path.startsWith('release/'));
+
   try {
     // 检查是否是大文件（特殊路径格式 release/{id}）
     if (path.startsWith('release/')) {
       const assetId = path.substring('release/'.length);
+      console.log('Asset ID:', assetId);
       
       // 先找到对应的 asset 信息
       let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
@@ -1110,6 +1115,7 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
       });
       
       if (!releaseResp.ok) {
+        console.log('Tag "files" not found, trying latest release');
         releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
           headers: getGitHubHeaders(token)
         });
@@ -1117,13 +1123,16 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
       
       if (releaseResp.ok) {
         const release = await releaseResp.json();
+        console.log('Release found:', release.tag_name, 'ID:', release.id);
         const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
           headers: getGitHubHeaders(token)
         });
         
         if (assetsResp.ok) {
           const assets = await assetsResp.json();
+          console.log('Assets count:', assets.length);
           const asset = assets.find((a: any) => a.id.toString() === assetId);
+          console.log('Asset found:', asset ? asset.name : 'NOT FOUND');
           
           if (asset) {
             const originalFilename = decodeStoredFilename(asset.name);
@@ -1136,6 +1145,7 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
             
             if (downloadResponse.ok) {
               const contentType = downloadResponse.headers.get('content-type') || 'application/octet-stream';
+              console.log('Preview successful, content-type:', contentType);
               
               // 对于图片和 PDF，允许跨域访问以便嵌入显示
               const corsExtra = (ext === 'pdf' || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) 
@@ -1150,40 +1160,51 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
                   ...corsExtra
                 }
               });
+            } else {
+              console.log('Failed to fetch asset content:', downloadResponse.status);
             }
           }
+        } else {
+          console.log('Failed to fetch assets:', assetsResp.status);
         }
+      } else {
+        console.log('Failed to fetch release:', releaseResp.status);
       }
-      return jsonResponse({ ok: false, message: '文件未找到' }, 404);
+    } else {
+      // 小文件：从 Contents API 读取
+      console.log('Non-release path, using Contents API');
+      
+      // 小文件：从 Contents API 读取
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.raw',
+          'User-Agent': 'Sharing-App/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        return jsonResponse({ ok: false, message: '文件不存在' }, 404);
+      }
+
+      const storedFilename = path.split('/').pop() || 'download';
+      const originalFilename = decodeStoredFilename(storedFilename);
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `inline; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
+          ...corsHeaders
+        }
+      });
     }
-
-    // 小文件：从 Contents API 读取
-    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.raw',
-        'User-Agent': 'Sharing-App/1.0'
-      }
-    });
-
-    if (!response.ok) {
-      return jsonResponse({ ok: false, message: '文件不存在' }, 404);
-    }
-
-    const storedFilename = path.split('/').pop() || 'download';
-    const originalFilename = decodeStoredFilename(storedFilename);
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `inline; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
-        ...corsHeaders
-      }
-    });
+    
+    return jsonResponse({ ok: false, message: '文件未找到' }, 404);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Preview error:', message);
     return jsonResponse({ ok: false, message }, 500);
   }
 }
