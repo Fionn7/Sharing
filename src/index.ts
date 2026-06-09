@@ -1139,26 +1139,57 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
             const ext = originalFilename.split('.').pop()?.toLowerCase() || '';
             
             // 预览文件内容，设置 inline 头让浏览器直接显示
+            // 关键：必须从 asset URL 重新 fetch 并设置正确的响应头
+            // GitHub Release 资源是公开的（如果 repo 是 public），所以不需要 token
+            
+            // 方法：直接重定向到 GitHub 的资源 URL，让浏览器直接处理
+            // 但 GitHub 默认会发送 attachment 头，所以我们需要代理
+            
+            // 改用：直接返回代理流，强制设置 inline
             const downloadResponse = await fetch(asset.browser_download_url, {
-              headers: getGitHubHeaders(token)
+              redirect: 'follow'
             });
             
             if (downloadResponse.ok) {
-              const contentType = downloadResponse.headers.get('content-type') || 'application/octet-stream';
+              // 检测真实的 content-type
+              let contentType = downloadResponse.headers.get('content-type') || 'application/octet-stream';
+              
+              // GitHub 有时返回的 content-type 不准确，根据扩展名强制设置
+              const mimeMap: Record<string, string> = {
+                'pdf': 'application/pdf',
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'png': 'image/png',
+                'gif': 'image/gif',
+                'bmp': 'image/bmp',
+                'svg': 'image/svg+xml',
+                'webp': 'image/webp',
+                'mp4': 'video/mp4',
+                'webm': 'video/webm',
+                'mp3': 'audio/mpeg',
+                'wav': 'audio/wav',
+                'ogg': 'audio/ogg'
+              };
+              if (mimeMap[ext]) {
+                contentType = mimeMap[ext];
+              }
+              
               console.log('Preview successful, content-type:', contentType);
               
-              // 对于图片和 PDF，允许跨域访问以便嵌入显示
-              const corsExtra = (ext === 'pdf' || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) 
-                ? { 'Access-Control-Allow-Origin': '*' } 
-                : {};
+              // 直接返回代理的内容，使用 inline 头让浏览器内联显示
+              // 注意：corsHeaders 中没有 Content-Disposition，所以 inline 头不会被覆盖
+              const responseHeaders: Record<string, string> = {
+                'Content-Type': contentType,
+                'Content-Disposition': `inline; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
+                'Cache-Control': 'public, max-age=3600',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept'
+              };
               
               return new Response(downloadResponse.body, {
-                headers: {
-                  'Content-Type': contentType,
-                  'Content-Disposition': `inline; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
-                  ...corsHeaders,
-                  ...corsExtra
-                }
+                status: 200,
+                headers: responseHeaders
               });
             } else {
               console.log('Failed to fetch asset content:', downloadResponse.status);

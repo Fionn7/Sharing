@@ -2,6 +2,9 @@ param(
     [string]$Message = "Update files"
 )
 
+# 生成当前时间戳
+$Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
 Write-Host "======================================"
 Write-Host "        Git 自动同步脚本"
 Write-Host "======================================"
@@ -34,9 +37,10 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "📝 添加所有更改..." -ForegroundColor Cyan
 git add .
 
-# 提交更改
-Write-Host "💾 提交更改: $Message" -ForegroundColor Cyan
-git commit -m $Message
+# 提交更改（消息自动追加当前时间）
+$CommitMessage = "$Message [$Timestamp]"
+Write-Host "💾 提交更改: $CommitMessage" -ForegroundColor Cyan
+git commit -m $CommitMessage
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "⚠️ 没有需要提交的更改" -ForegroundColor Yellow
