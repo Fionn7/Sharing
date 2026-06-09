@@ -407,7 +407,9 @@
 
         // 判断文件是否支持在线预览
         function isPreviewable(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
+            if (!filename || typeof filename !== 'string') return false;
+            const ext = filename.split('.').pop()?.toLowerCase();
+            if (!ext) return false;
             return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav'].includes(ext);
         }
 
@@ -578,6 +580,8 @@
                 const icon = getFileIcon(file.name);
                 const iconClass = getFileIconClass(file.name);
                 const dateStr = file.last_modified ? formatDate(file.last_modified) : '--';
+                const previewable = isPreviewable(file.name);
+                console.log(`File: ${file.name}, isPreviewable: ${previewable}, ext: ${file.name.split('.').pop()?.toLowerCase()}`);
                 
                 html += `
                     <!-- 文件 ${index + 1} -->
@@ -609,7 +613,7 @@
                         
                         <!-- 操作按钮 -->
                         <div class="flex gap-2 mt-3">
-                            ${isPreviewable(file.name) ? `<button onclick="openPreviewModal('${escapeHTML(file.path)}', '${escapeHTML(file.name)}', ${file.size})" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-emerald-500/30 hover:bg-emerald-500/40 rounded-lg text-xs transition-colors text-emerald-300">
+                            ${previewable ? `<button onclick="openPreviewModal('${escapeHTML(file.path)}', '${escapeHTML(file.name)}', ${file.size})" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-green-500/50 hover:bg-green-500/70 rounded-lg text-xs transition-colors text-white border border-green-500/50">
                                 <i class="fa fa-eye mr-1"></i>预览
                             </button>` : ''}
                             <button onclick="downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs transition-colors">
