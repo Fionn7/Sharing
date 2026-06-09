@@ -111,6 +111,11 @@ export default {
       return handleDownload(path, githubToken, githubOwner, githubRepo);
     }
 
+    if (pathname.startsWith('/preview/')) {
+      const path = pathname.replace('/preview/', '');
+      return handlePreview(path, githubToken, githubOwner, githubRepo);
+    }
+
     if (pathname === '/api/debug') {
       // 测试 GitHub API 连接
       let githubStatus = 'unknown';
@@ -1079,6 +1084,101 @@ async function handleDownload(path: string, token: string, owner: string, repo: 
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
+        ...corsHeaders
+      }
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return jsonResponse({ ok: false, message }, 500);
+  }
+}
+
+// 文件在线预览处理
+async function handlePreview(path: string, token: string, owner: string, repo: string): Promise<Response> {
+  if (!token) {
+    return jsonResponse({ ok: false, message: '请配置 GITHUB_TOKEN' }, 500);
+  }
+
+  try {
+    // 检查是否是大文件（特殊路径格式 release/{id}）
+    if (path.startsWith('release/')) {
+      const assetId = path.substring('release/'.length);
+      
+      // 先找到对应的 asset 信息
+      let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (!releaseResp.ok) {
+        releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
+          headers: getGitHubHeaders(token)
+        });
+      }
+      
+      if (releaseResp.ok) {
+        const release = await releaseResp.json();
+        const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
+          headers: getGitHubHeaders(token)
+        });
+        
+        if (assetsResp.ok) {
+          const assets = await assetsResp.json();
+          const asset = assets.find((a: any) => a.id.toString() === assetId);
+          
+          if (asset) {
+            const originalFilename = decodeStoredFilename(asset.name);
+            const ext = originalFilename.split('.').pop()?.toLowerCase() || '';
+            
+            // 预览文件内容，设置 inline 头让浏览器直接显示
+            const downloadResponse = await fetch(asset.browser_download_url, {
+              headers: getGitHubHeaders(token)
+            });
+            
+            if (downloadResponse.ok) {
+              const contentType = downloadResponse.headers.get('content-type') || 'application/octet-stream';
+              
+              // 对于图片和 PDF，允许跨域访问以便嵌入显示
+              const corsExtra = (ext === 'pdf' || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) 
+                ? { 'Access-Control-Allow-Origin': '*' } 
+                : {};
+              
+              return new Response(downloadResponse.body, {
+                headers: {
+                  'Content-Type': contentType,
+                  'Content-Disposition': `inline; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
+                  ...corsHeaders,
+                  ...corsExtra
+                }
+              });
+            }
+          }
+        }
+      }
+      return jsonResponse({ ok: false, message: '文件未找到' }, 404);
+    }
+
+    // 小文件：从 Contents API 读取
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.raw',
+        'User-Agent': 'Sharing-App/1.0'
+      }
+    });
+
+    if (!response.ok) {
+      return jsonResponse({ ok: false, message: '文件不存在' }, 404);
+    }
+
+    const storedFilename = path.split('/').pop() || 'download';
+    const originalFilename = decodeStoredFilename(storedFilename);
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+    return new Response(response.body, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `inline; filename="${encodeURIComponent(originalFilename)}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`,
         ...corsHeaders
       }
     });

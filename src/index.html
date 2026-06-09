@@ -238,6 +238,38 @@
         </div>
     </section>
 
+    <!-- 文件预览模态框 -->
+    <div id="previewModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closePreviewModal()"></div>
+        <div class="absolute inset-4 md:inset-8 lg:inset-16 bg-slate-900 rounded-2xl overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b border-white/10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center" id="previewModalIcon">
+                        <i class="fa fa-file-o text-white/70"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold" id="previewModalTitle">文件预览</h3>
+                        <p class="text-xs text-white/50" id="previewModalSubtitle">--</p>
+                    </div>
+                </div>
+                <button onclick="closePreviewModal()" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center text-white/60 hover:text-white transition-colors">
+                    <i class="fa fa-times text-lg"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-auto p-4" id="previewModalContent">
+                <!-- 预览内容将在这里显示 -->
+            </div>
+            <div class="flex justify-center gap-3 p-4 border-t border-white/10">
+                <button onclick="downloadCurrentFile()" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors">
+                    <i class="fa fa-download mr-2"></i>下载
+                </button>
+                <button onclick="closePreviewModal()" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
+
     <footer class="py-12">
         <div class="container mx-auto px-6">
             <div class="glass rounded-2xl p-8">
@@ -264,6 +296,13 @@
             } else {
                 navbar.classList.add('py-4');
                 navbar.classList.remove('py-2');
+            }
+        });
+
+        // ESC 键关闭预览模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closePreviewModal();
             }
         });
 
@@ -366,6 +405,126 @@
             return 'fa-file-o';
         }
 
+        // 判断文件是否支持在线预览
+        function isPreviewable(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav'].includes(ext);
+        }
+
+        // 当前预览的文件信息
+        let currentPreviewFile = { path: '', name: '', size: 0 };
+
+        // 打开预览模态框
+        async function openPreviewModal(path, name, size) {
+            currentPreviewFile = { path, name, size };
+            
+            const modal = document.getElementById('previewModal');
+            const modalIcon = document.getElementById('previewModalIcon');
+            const modalTitle = document.getElementById('previewModalTitle');
+            const modalSubtitle = document.getElementById('previewModalSubtitle');
+            const modalContent = document.getElementById('previewModalContent');
+            
+            const ext = name.split('.').pop().toLowerCase();
+            const iconClass = getFileIconClass(name);
+            const icon = getFileIcon(name);
+            
+            modalIcon.innerHTML = `<i class="fa ${icon} ${iconClass}"></i>`;
+            modalTitle.textContent = name;
+            modalSubtitle.textContent = formatFileSize(size);
+            
+            // 显示加载中
+            modalContent.innerHTML = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <div class="w-12 h-12 mx-auto mb-4 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                        <p class="text-white/60">正在加载预览...</p>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            
+            // 加载预览内容
+            try {
+                const previewUrl = `/preview/${encodeURIComponent(path)}`;
+                
+                if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) {
+                    // 图片预览
+                    modalContent.innerHTML = `
+                        <div class="flex items-center justify-center h-full">
+                            <img src="${previewUrl}" alt="${escapeHTML(name)}" class="max-w-full max-h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<div class=\\'text-center text-white/60\\'><i class=\\'fa fa-image text-6xl mb-4\\'></i><p>图片加载失败</p></div>'">
+                        </div>
+                    `;
+                } else if (ext === 'pdf') {
+                    // PDF 预览 - 使用 iframe
+                    modalContent.innerHTML = `
+                        <div class="flex items-center justify-center h-full">
+                            <iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe>
+                        </div>
+                    `;
+                } else if (['mp4', 'webm'].includes(ext)) {
+                    // 视频预览
+                    modalContent.innerHTML = `
+                        <div class="flex items-center justify-center h-full">
+                            <video controls class="max-w-full max-h-full rounded-lg">
+                                <source src="${previewUrl}" type="video/${ext}">
+                                <p class="text-white/60">您的浏览器不支持视频播放</p>
+                            </video>
+                        </div>
+                    `;
+                } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
+                    // 音频预览
+                    modalContent.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-full">
+                            <div class="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6">
+                                <i class="fa fa-music text-4xl text-white/70"></i>
+                            </div>
+                            <audio controls class="w-full max-w-md">
+                                <source src="${previewUrl}" type="audio/${ext === 'ogg' ? 'ogg' : ext}">
+                                <p class="text-white/60">您的浏览器不支持音频播放</p>
+                            </audio>
+                        </div>
+                    `;
+                } else {
+                    modalContent.innerHTML = `
+                        <div class="flex items-center justify-center h-full">
+                            <div class="text-center text-white/60">
+                                <i class="fa fa-file-o text-6xl mb-4"></i>
+                                <p>该文件类型暂不支持预览</p>
+                                <p class="text-sm mt-2">请下载后查看</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                modalContent.innerHTML = `
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center text-white/60">
+                            <i class="fa fa-exclamation-triangle text-6xl mb-4"></i>
+                            <p>预览加载失败</p>
+                            <p class="text-sm mt-2">${escapeHTML(error.message || '未知错误')}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 关闭预览模态框
+        function closePreviewModal() {
+            const modal = document.getElementById('previewModal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+            currentPreviewFile = { path: '', name: '', size: 0 };
+        }
+
+        // 下载当前预览的文件
+        function downloadCurrentFile() {
+            if (currentPreviewFile.path && currentPreviewFile.name) {
+                downloadFile(currentPreviewFile.path, currentPreviewFile.name);
+            }
+        }
+
         async function loadFiles() {
             try {
                 const response = await fetch('/api/files');
@@ -450,6 +609,9 @@
                         
                         <!-- 操作按钮 -->
                         <div class="flex gap-2 mt-3">
+                            ${isPreviewable(file.name) ? `<button onclick="openPreviewModal('${escapeHTML(file.path)}', '${escapeHTML(file.name)}', ${file.size})" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-emerald-500/30 hover:bg-emerald-500/40 rounded-lg text-xs transition-colors text-emerald-300">
+                                <i class="fa fa-eye mr-1"></i>预览
+                            </button>` : ''}
                             <button onclick="downloadFile('${escapeHTML(file.path)}', '${escapeHTML(file.name)}')" class="flex-1 flex items-center justify-center px-2 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs transition-colors">
                                 <i class="fa fa-download mr-1"></i>下载
                             </button>
