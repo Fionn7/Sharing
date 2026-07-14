@@ -964,16 +964,14 @@ async function handlePreview(path, token, owner, repo) {
 }
 __name(handlePreview, "handlePreview");
 async function handleCreateShare(request, env) {
-  if (!env.SHARE_SECRET) {
-    return jsonResponse({ ok: false, message: "\u8BF7\u914D\u7F6E SHARE_SECRET" }, 500);
-  }
+  const secret = env.SHARE_SECRET || "sharing-app-default-secret-key-2026";
   try {
     const body = await request.json();
     const { path, expiresInHours = 24 } = body;
     if (!path) {
       return jsonResponse({ ok: false, message: "\u8BF7\u63D0\u4F9B\u6587\u4EF6\u8DEF\u5F84" }, 400);
     }
-    const signature = await generateShareSignature(path, env.SHARE_SECRET, expiresInHours);
+    const signature = await generateShareSignature(path, secret, expiresInHours);
     const sharePath = `${path.replace(/^\//, "")}/${signature}`;
     const shareUrl = `${new URL(request.url).origin}/s/${sharePath}`;
     const expiresAt = new Date((Math.floor(Date.now() / 1e3) + expiresInHours * 3600) * 1e3);
@@ -991,9 +989,7 @@ async function handleCreateShare(request, env) {
 }
 __name(handleCreateShare, "handleCreateShare");
 async function handleShareAccess(request, env) {
-  if (!env.SHARE_SECRET) {
-    return new Response("\u670D\u52A1\u672A\u914D\u7F6E\u5206\u4EAB\u529F\u80FD", { status: 500 });
-  }
+  const secret = env.SHARE_SECRET || "sharing-app-default-secret-key-2026";
   const url = new URL(request.url);
   const sharePath = url.pathname.substring(3);
   const parts = sharePath.split("/");
@@ -1002,7 +998,7 @@ async function handleShareAccess(request, env) {
   }
   const signature = parts[parts.length - 1];
   const filePath = parts.slice(0, -1).join("/");
-  const isValid = await verifyShareSignature(filePath, signature, env.SHARE_SECRET);
+  const isValid = await verifyShareSignature(filePath, signature, secret);
   if (!isValid) {
     return new Response("\u5206\u4EAB\u94FE\u63A5\u5DF2\u8FC7\u671F\u6216\u65E0\u6548", { status: 403 });
   }

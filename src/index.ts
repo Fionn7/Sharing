@@ -4,7 +4,7 @@ interface Env {
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
-  SHARE_SECRET: string;
+  SHARE_SECRET?: string;
 }
 
 const corsHeaders = {
@@ -1292,9 +1292,7 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
 
 // 创建分享链接
 async function handleCreateShare(request: Request, env: Env): Promise<Response> {
-  if (!env.SHARE_SECRET) {
-    return jsonResponse({ ok: false, message: '请配置 SHARE_SECRET' }, 500);
-  }
+  const secret = env.SHARE_SECRET || 'sharing-app-default-secret-key-2026';
 
   try {
     const body = await request.json();
@@ -1304,7 +1302,7 @@ async function handleCreateShare(request: Request, env: Env): Promise<Response> 
       return jsonResponse({ ok: false, message: '请提供文件路径' }, 400);
     }
 
-    const signature = await generateShareSignature(path, env.SHARE_SECRET, expiresInHours);
+    const signature = await generateShareSignature(path, secret, expiresInHours);
     const sharePath = `${path.replace(/^\//, '')}/${signature}`;
     const shareUrl = `${new URL(request.url).origin}/s/${sharePath}`;
 
@@ -1325,9 +1323,7 @@ async function handleCreateShare(request: Request, env: Env): Promise<Response> 
 
 // 处理分享链接访问
 async function handleShareAccess(request: Request, env: Env): Promise<Response> {
-  if (!env.SHARE_SECRET) {
-    return new Response('服务未配置分享功能', { status: 500 });
-  }
+  const secret = env.SHARE_SECRET || 'sharing-app-default-secret-key-2026';
 
   const url = new URL(request.url);
   const sharePath = url.pathname.substring(3);
@@ -1340,7 +1336,7 @@ async function handleShareAccess(request: Request, env: Env): Promise<Response> 
   const signature = parts[parts.length - 1];
   const filePath = parts.slice(0, -1).join('/');
 
-  const isValid = await verifyShareSignature(filePath, signature, env.SHARE_SECRET);
+  const isValid = await verifyShareSignature(filePath, signature, secret);
   if (!isValid) {
     return new Response('分享链接已过期或无效', { status: 403 });
   }
