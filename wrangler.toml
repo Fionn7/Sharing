@@ -10,3 +10,4 @@ fallthrough = true
 [vars]
 GITHUB_OWNER = "Fionn7"
 GITHUB_REPO = "Sharing"
+# SHARE_SECRET 需要通过 wrangler secret put SHARE_SECRET 命令设置

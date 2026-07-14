@@ -4,6 +4,7 @@ interface Env {
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
+  SHARE_SECRET: string;
 }
 
 const corsHeaders = {
@@ -193,6 +194,14 @@ export default {
       } catch (e) {
         return jsonResponse({ ok: false, message: e instanceof Error ? e.message : 'error' }, 500);
       }
+    }
+
+    if (pathname === '/api/share' && method === 'POST') {
+      return handleCreateShare(request, env);
+    }
+
+    if (pathname.startsWith('/s/')) {
+      return handleShareAccess(request, env);
     }
 
     return new Response('404 Not Found', { status: 404, headers: corsHeaders });
@@ -997,11 +1006,52 @@ function decodeStoredFilename(storedName: string): string {
       const decoded = decodeURIComponent(atob(parts[1]));
       return decoded;
     } catch {
-      // 如果解码失败，返回原始存储名
       return storedName;
     }
   }
   return storedName;
+}
+
+function base64UrlEncode(buffer: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+function base64UrlDecode(str: string): Uint8Array {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - str.length % 4) % 4);
+  return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+}
+
+async function generateShareSignature(path: string, secret: string, expiresInHours: number = 24): Promise<string> {
+  const expires = Math.floor(Date.now() / 1000) + (expiresInHours * 3600);
+  const data = `${path}:${expires}`;
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  return `${expires}-${base64UrlEncode(signature)}`;
+}
+
+async function verifyShareSignature(path: string, signature: string, secret: string): Promise<boolean> {
+  try {
+    const parts = signature.split('-');
+    if (parts.length !== 2) return false;
+    
+    const expires = parseInt(parts[0], 10);
+    if (isNaN(expires) || Date.now() / 1000 > expires) return false;
+    
+    const data = `${path}:${expires}`;
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    
+    const signatureBytes = base64UrlDecode(parts[1]);
+    return await crypto.subtle.verify('HMAC', key, signatureBytes, encoder.encode(data));
+  } catch {
+    return false;
+  }
 }
 
 async function handleDownload(path: string, token: string, owner: string, repo: string): Promise<Response> {
@@ -1238,4 +1288,267 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
     console.error('Preview error:', message);
     return jsonResponse({ ok: false, message }, 500);
   }
+}
+
+// 创建分享链接
+async function handleCreateShare(request: Request, env: Env): Promise<Response> {
+  if (!env.SHARE_SECRET) {
+    return jsonResponse({ ok: false, message: '请配置 SHARE_SECRET' }, 500);
+  }
+
+  try {
+    const body = await request.json();
+    const { path, expiresInHours = 24 } = body;
+
+    if (!path) {
+      return jsonResponse({ ok: false, message: '请提供文件路径' }, 400);
+    }
+
+    const signature = await generateShareSignature(path, env.SHARE_SECRET, expiresInHours);
+    const sharePath = `${path.replace(/^\//, '')}/${signature}`;
+    const shareUrl = `${new URL(request.url).origin}/s/${sharePath}`;
+
+    const expiresAt = new Date((Math.floor(Date.now() / 1000) + expiresInHours * 3600) * 1000);
+
+    return jsonResponse({
+      ok: true,
+      shareUrl,
+      expiresAt: expiresAt.toISOString(),
+      expiresInHours,
+      message: `分享链接已生成，有效期 ${expiresInHours} 小时`
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return jsonResponse({ ok: false, message }, 500);
+  }
+}
+
+// 处理分享链接访问
+async function handleShareAccess(request: Request, env: Env): Promise<Response> {
+  if (!env.SHARE_SECRET) {
+    return new Response('服务未配置分享功能', { status: 500 });
+  }
+
+  const url = new URL(request.url);
+  const sharePath = url.pathname.substring(3);
+
+  const parts = sharePath.split('/');
+  if (parts.length < 2) {
+    return new Response('无效的分享链接', { status: 400 });
+  }
+
+  const signature = parts[parts.length - 1];
+  const filePath = parts.slice(0, -1).join('/');
+
+  const isValid = await verifyShareSignature(filePath, signature, env.SHARE_SECRET);
+  if (!isValid) {
+    return new Response('分享链接已过期或无效', { status: 403 });
+  }
+
+  const fileInfo = await getFileInfo(filePath, env.GITHUB_TOKEN, env.GITHUB_OWNER, env.GITHUB_REPO);
+  if (!fileInfo) {
+    return new Response('文件不存在', { status: 404 });
+  }
+
+  if (request.method === 'GET') {
+    return handleSharePreview(filePath, fileInfo, env);
+  }
+
+  return new Response('方法不支持', { status: 405 });
+}
+
+// 获取文件信息
+async function getFileInfo(path: string, token: string, owner: string, repo: string): Promise<any | null> {
+  try {
+    if (path.startsWith('release/')) {
+      const assetId = path.substring('release/'.length);
+      
+      let releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/files`, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (!releaseResp.ok) {
+        releaseResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
+          headers: getGitHubHeaders(token)
+        });
+      }
+      
+      if (releaseResp.ok) {
+        const release = await releaseResp.json();
+        const assetsResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets`, {
+          headers: getGitHubHeaders(token)
+        });
+        
+        if (assetsResp.ok) {
+          const assets = await assetsResp.json();
+          const asset = assets.find((a: any) => a.id.toString() === assetId);
+          if (asset) {
+            return {
+              name: decodeStoredFilename(asset.name),
+              originalName: asset.name,
+              size: asset.size,
+              ext: decodeStoredFilename(asset.name).split('.').pop()?.toLowerCase() || '',
+              url: asset.browser_download_url
+            };
+          }
+        }
+      }
+    } else {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+      const response = await fetch(url, {
+        headers: getGitHubHeaders(token)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          name: data.name,
+          originalName: data.name,
+          size: data.size,
+          ext: data.name.split('.').pop()?.toLowerCase() || '',
+          url: `https://api.github.com/repos/${owner}/${repo}/contents/${path}`
+        };
+      }
+    }
+  } catch {
+    // 忽略错误，返回 null
+  }
+  return null;
+}
+
+// 分享预览页面
+async function handleSharePreview(filePath: string, fileInfo: any, env: Env): Promise<Response> {
+  const ext = fileInfo.ext;
+  const previewableExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav'];
+  const isPreviewable = previewableExts.includes(ext);
+
+  let previewContent = '';
+  const downloadUrl = filePath.startsWith('release/') 
+    ? `/download/${filePath}` 
+    : `/download/${filePath}`;
+
+  if (isPreviewable) {
+    const previewUrl = filePath.startsWith('release/') 
+      ? `/preview/${filePath}` 
+      : `/preview/${filePath}`;
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) {
+      previewContent = `<div class="flex items-center justify-center h-96"><img src="${previewUrl}" alt="${fileInfo.name}" class="max-w-full max-h-full object-contain rounded-lg"></div>`;
+    } else if (ext === 'pdf') {
+      previewContent = `<div class="h-96"><iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
+    } else if (['mp4', 'webm'].includes(ext)) {
+      previewContent = `<div class="flex items-center justify-center h-96"><video controls class="max-w-full max-h-full rounded-lg"><source src="${previewUrl}" type="video/${ext}"><p>您的浏览器不支持视频播放</p></video></div>`;
+    } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
+      previewContent = `<div class="flex flex-col items-center justify-center h-96"><div class="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6"><i class="fa fa-music text-4xl text-white/70"></i></div><audio controls class="w-full max-w-md"><source src="${previewUrl}" type="audio/${ext === 'ogg' ? 'ogg' : ext}"><p>您的浏览器不支持音频播放</p></audio></div>`;
+    }
+  } else {
+    previewContent = `<div class="flex items-center justify-center h-96"><div class="text-center text-white/60"><i class="fa fa-file-o text-6xl mb-4"></i><p>该文件类型暂不支持预览</p><p class="text-sm mt-2">请下载后查看</p></div></div>`;
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件分享 - ${fileInfo.name}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #0f172a, #1e293b); }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); }
+    </style>
+</head>
+<body class="min-h-screen text-white p-4 md:p-8">
+    <div class="max-w-3xl mx-auto">
+        <div class="glass rounded-2xl overflow-hidden">
+            <div class="p-6 border-b border-white/10">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fa fa-share-alt text-green-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold">文件分享</h1>
+                            <p class="text-sm text-white/60">这是一个安全的分享链接</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <div class="glass rounded-xl p-4 mb-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fa ${getFileShareIcon(fileInfo.ext)} ${getFileShareIconClass(fileInfo.ext)} text-xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-medium text-lg break-all">${fileInfo.name}</div>
+                            <div class="text-sm text-white/60 mt-1">${formatShareFileSize(fileInfo.size)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${previewContent}
+                
+                <div class="mt-6 flex justify-center">
+                    <a href="${downloadUrl}" class="flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg transition-colors">
+                        <i class="fa fa-download mr-2"></i>下载文件
+                    </a>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-white/10 text-center text-xs text-white/50">
+                <p>© 2026 Sharing 文件共享平台</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+  `;
+
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=UTF-8',
+      ...corsHeaders
+    }
+  });
+}
+
+function getFileShareIcon(ext: string): string {
+  if (!ext) return 'fa-file-o';
+  const icons: Record<string, string> = {
+    pdf: 'fa-file-pdf-o', doc: 'fa-file-word-o', docx: 'fa-file-word-o',
+    xls: 'fa-file-excel-o', xlsx: 'fa-file-excel-o', ppt: 'fa-file-powerpoint-o',
+    pptx: 'fa-file-powerpoint-o', jpg: 'fa-file-image-o', jpeg: 'fa-file-image-o',
+    png: 'fa-file-image-o', gif: 'fa-file-image-o', bmp: 'fa-file-image-o',
+    svg: 'fa-file-image-o', mp4: 'fa-file-video-o', avi: 'fa-file-video-o',
+    mov: 'fa-file-video-o', mp3: 'fa-file-audio-o', wav: 'fa-file-audio-o',
+    zip: 'fa-file-archive-o', rar: 'fa-file-archive-o', '7z': 'fa-file-archive-o',
+    js: 'fa-file-code-o', html: 'fa-file-code-o', css: 'fa-file-code-o', json: 'fa-file-code-o'
+  };
+  return icons[ext] || 'fa-file-o';
+}
+
+function getFileShareIconClass(ext: string): string {
+  if (!ext) return 'text-gray-400';
+  const classes: Record<string, string> = {
+    pdf: 'text-red-400', doc: 'text-blue-400', docx: 'text-blue-400',
+    xls: 'text-green-400', xlsx: 'text-green-400', ppt: 'text-orange-400',
+    pptx: 'text-orange-400', jpg: 'text-purple-400', jpeg: 'text-purple-400',
+    png: 'text-purple-400', gif: 'text-purple-400', bmp: 'text-purple-400',
+    svg: 'text-purple-400', mp4: 'text-yellow-400', avi: 'text-yellow-400',
+    mov: 'text-yellow-400', mp3: 'text-pink-400', wav: 'text-pink-400',
+    zip: 'text-orange-400', rar: 'text-orange-400', '7z': 'text-orange-400',
+    js: 'text-yellow-400', html: 'text-yellow-400', css: 'text-yellow-400', json: 'text-yellow-400'
+  };
+  return classes[ext] || 'text-gray-400';
+}
+
+function formatShareFileSize(bytes: number): string {
+  if (bytes === 0 || !bytes) return '--';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
