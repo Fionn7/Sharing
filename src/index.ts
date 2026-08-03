@@ -1436,23 +1436,23 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       : `/preview/${filePath}`;
 
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext)) {
-      previewContent = `<div class="flex items-center justify-center min-h-[500px]"><img src="${previewUrl}" alt="${fileInfo.name}" class="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg"></div>`;
+      previewContent = `<div class="flex items-center justify-center min-h-[500px]"><img src="${previewUrl}" alt="${fileInfo.name}" class="max-w-full rounded-xl shadow-lg" style="max-height:calc(100vh - 180px);object-fit:contain;"></div>`;
     } else if (ext === 'pdf') {
-      previewContent = `<div class="min-h-[500px] h-[70vh]"><iframe src="${previewUrl}" class="w-full h-full rounded-xl shadow-lg" frameborder="0"></iframe></div>`;
+      previewContent = `<div class="min-h-[600px] h-[75vh]"><iframe src="${previewUrl}" class="w-full h-full rounded-xl shadow-lg" frameborder="0"></iframe></div>`;
     } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
       // Office 文档预览 - 纯前端渲染（docx-preview / SheetJS / pptx-preview），避免 Office Online fetch 超时
-      previewContent = `<div id="office-preview" class="min-h-[500px] h-[70vh] bg-white rounded-xl shadow-lg overflow-auto"></div>
+      previewContent = `<div id="office-preview" class="min-h-[600px] h-[75vh] bg-white rounded-xl shadow-lg overflow-auto"></div>
 <script>
 (async function(){
   var c = document.getElementById('office-preview');
-  c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:400px;color:#666;"><div style="text-align:center;"><i class="fa fa-spinner fa-pulse fa-2x"></i><p style="margin-top:12px;">正在解析文档...</p></div></div>';
+  c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:500px;color:#666;"><div style="text-align:center;"><i class="fa fa-spinner fa-pulse fa-2x"></i><p style="margin-top:12px;">正在解析文档...</p></div></div>';
   try {
     var resp = await fetch('${previewUrl}');
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     var ab = await resp.arrayBuffer();
     var ext = '${ext}';
     if(['doc','docx'].includes(ext)){
-      c.innerHTML = '<div style="padding:32px;overflow:auto;min-height:500px;color:#000;font-size:16px;line-height:1.6;"></div>';
+      c.innerHTML = '<div style="padding:48px;overflow:auto;min-height:600px;color:#000;font-size:16px;line-height:1.6;"></div>';
       await docx.renderAsync(ab, c.firstElementChild);
     } else if(['xls','xlsx'].includes(ext)){
       c.innerHTML = '';
@@ -1460,22 +1460,21 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       wb.SheetNames.forEach(function(n){
         var h3 = document.createElement('h3');
         h3.textContent = n;
-        h3.style.cssText = 'font-size:18px;font-weight:bold;margin:24px 0 12px;color:#1e293b;';
+        h3.style.cssText = 'font-size:20px;font-weight:bold;margin:24px 0 12px;color:#1e293b;';
         c.appendChild(h3);
         var wrapper = document.createElement('div');
         wrapper.style.cssText = 'overflow:auto;margin-bottom:16px;';
         wrapper.innerHTML = XLSX.utils.sheet_to_html(wb.Sheets[n]);
         var table = wrapper.querySelector('table');
-        if(table){ table.style.cssText = 'border-collapse:collapse;font-size:14px;'; }
+        if(table){ table.style.cssText = 'border-collapse:collapse;font-size:15px;'; }
         c.appendChild(wrapper);
       });
       c.style.padding = '24px';
       c.style.color = '#000';
     } else if (['ppt','pptx'].includes(ext)){
-      c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:8px;min-height:500px;"></div>';
+      c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:8px;min-height:600px;"></div>';
       var viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
       var inner = c.firstElementChild;
-      // 等待容器渲染
       await new Promise(function(r){ setTimeout(r, 50); });
       var maxW = c.clientWidth - 16;
       var maxH = c.clientHeight - 16;
@@ -1491,14 +1490,14 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       await v.preview(ab);
     }
   } catch(e){
-    c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:400px;"><div style="text-align:center;color:#666;"><i class="fa fa-exclamation-circle fa-2x"></i><p style="margin-top:12px;font-size:16px;">文档解析失败</p><p style="font-size:13px;margin-top:4px;">'+(e.message||'未知错误')+'</p><p style="font-size:12px;margin-top:8px;color:#999;">请下载后查看</p></div></div>';
+    c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:500px;"><div style="text-align:center;color:#666;"><i class="fa fa-exclamation-circle fa-2x"></i><p style="margin-top:12px;font-size:16px;">文档解析失败</p><p style="font-size:13px;margin-top:4px;">'+(e.message||'未知错误')+'</p><p style="font-size:12px;margin-top:8px;color:#999;">请下载后查看</p></div></div>';
   }
 })();
 </script>`;
     } else if (['mp4', 'webm'].includes(ext)) {
-      previewContent = `<div class="flex items-center justify-center min-h-[500px]"><video controls class="max-w-full max-h-[70vh] rounded-xl shadow-lg"><source src="${previewUrl}" type="video/${ext}"><p>您的浏览器不支持视频播放</p></video></div>`;
+      previewContent = `<div class="flex items-center justify-center min-h-[500px]"><video controls class="max-w-full rounded-xl shadow-lg" style="max-height:calc(100vh - 180px);"><source src="${previewUrl}" type="video/${ext}"><p>您的浏览器不支持视频播放</p></video></div>`;
     } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
-      previewContent = `<div class="flex flex-col items-center justify-center min-h-[500px]"><div class="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6"><i class="fa fa-music text-4xl text-white/70"></i></div><audio controls class="w-full max-w-md"><source src="${previewUrl}" type="audio/${ext === 'ogg' ? 'ogg' : ext}"><p>您的浏览器不支持音频播放</p></audio></div>`;
+      previewContent = `<div class="flex flex-col items-center justify-center min-h-[500px]"><div class="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mb-6"><i class="fa fa-music text-5xl text-white/70"></i></div><audio controls class="w-full max-w-lg"><source src="${previewUrl}" type="audio/${ext === 'ogg' ? 'ogg' : ext}"><p>您的浏览器不支持音频播放</p></audio></div>`;
     }
   } else {
     previewContent = `<div class="flex items-center justify-center min-h-[500px]"><div class="text-center text-white/60"><i class="fa fa-file-o text-6xl mb-4"></i><p class="text-base">该文件类型暂不支持预览</p><p class="text-sm mt-2">请下载后查看</p></div></div>`;
