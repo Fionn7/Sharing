@@ -616,7 +616,7 @@
                     `;
                 } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
                     // Office 文档预览 - 使用 Microsoft Office Online Viewer
-                    // Office Online 要求 src 为公开可访问的绝对 URL（项目仓库为 public，/preview/ 端点公开）
+                    // 需配合自定义域名（*.workers.dev 被 Office Online 限制），window.location.origin 会自动使用绑定域名
                     const absolutePreviewUrl = window.location.origin + previewUrl;
                     const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolutePreviewUrl)}`;
                     modalContent.innerHTML = `

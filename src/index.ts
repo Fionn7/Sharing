@@ -1440,7 +1440,7 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
     } else if (ext === 'pdf') {
       previewContent = `<div class="h-96"><iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
     } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
-      // Office 文档预览 - 使用 Microsoft Office Online Viewer（要求公开可访问的绝对 URL）
+      // Office 文档预览 - 使用 Microsoft Office Online Viewer（需配合自定义域名，*.workers.dev 被限制）
       const absolutePreviewUrl = `${origin}${previewUrl}`;
       const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolutePreviewUrl)}`;
       previewContent = `<div class="h-96"><iframe src="${viewerUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
