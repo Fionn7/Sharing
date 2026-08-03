@@ -299,8 +299,8 @@
     <!-- 文件预览模态框 -->
     <div id="previewModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closePreviewModal()"></div>
-        <div id="previewModalBox" class="absolute inset-2 md:inset-4 lg:inset-6 glass rounded-3xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300">
-            <div id="previewModalHeader" class="flex items-center justify-between p-4 md:p-5 border-b border-white/10 bg-white/5">
+        <div id="previewModalBox" class="absolute inset-1 md:inset-2 lg:inset-3 glass rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300">
+            <div id="previewModalHeader" class="flex items-center justify-between p-3 md:p-4 border-b border-white/10 bg-white/5">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0" id="previewModalIcon">
                         <i class="fa fa-file-o text-white/70"></i>
@@ -319,10 +319,10 @@
                     </button>
                 </div>
             </div>
-            <div class="flex-1 overflow-auto p-2 md:p-4 bg-slate-800/30" id="previewModalContent">
+            <div class="flex-1 overflow-auto p-1 md:p-2 bg-slate-800/30" id="previewModalContent">
                 <!-- 预览内容将在这里显示 -->
             </div>
-            <div id="previewModalFooter" class="flex justify-center gap-3 p-3 md:p-4 border-t border-white/10 bg-white/5">
+            <div id="previewModalFooter" class="flex justify-center gap-3 p-2 md:p-3 border-t border-white/10 bg-white/5">
                 <button onclick="downloadCurrentFile()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-xl text-sm font-medium transition-all shadow-lg shadow-emerald-500/20">
                     <i class="fa fa-download mr-2"></i>下载
                 </button>
@@ -636,13 +636,13 @@
         let pptxState = null;
 
         function computePPTSize() {
-            const headerH = document.getElementById('previewModalHeader')?.offsetHeight || 60;
-            const footerH = document.getElementById('previewModalFooter')?.offsetHeight || 60;
+            const headerH = document.getElementById('previewModalHeader')?.offsetHeight || 50;
+            const footerH = document.getElementById('previewModalFooter')?.offsetHeight || 50;
             const isFs = document.getElementById('previewModal')?.classList.contains('preview-fullscreen');
-            const sidePad = isFs ? 0 : (window.innerWidth < 768 ? 16 : window.innerWidth < 1024 ? 32 : 48);
-            const topPad = isFs ? 0 : (window.innerWidth < 768 ? 16 : window.innerWidth < 1024 ? 32 : 48);
-            const availW = Math.max(320, window.innerWidth - sidePad * 2 - (isFs ? 0 : 32));
-            const availH = Math.max(240, window.innerHeight - headerH - footerH - (isFs ? 0 : topPad * 2) - 16);
+            const sidePad = isFs ? 0 : (window.innerWidth < 768 ? 8 : window.innerWidth < 1024 ? 16 : 24);
+            const topPad = isFs ? 0 : (window.innerWidth < 768 ? 8 : window.innerWidth < 1024 ? 16 : 24);
+            const availW = Math.max(320, window.innerWidth - sidePad * 2 - (isFs ? 0 : 16));
+            const availH = Math.max(240, window.innerHeight - headerH - footerH - (isFs ? 0 : topPad * 2) - 8);
             let w, h;
             if (availW / availH > 16 / 9) {
                 h = Math.max(360, availH);
@@ -844,14 +844,14 @@
             isFullscreen = !isFullscreen;
             if (isFullscreen) {
                 modal.classList.add('preview-fullscreen');
-                box.classList.remove('inset-2', 'md:inset-4', 'lg:inset-6', 'rounded-3xl');
+                box.classList.remove('inset-1', 'md:inset-2', 'lg:inset-3', 'rounded-2xl');
                 box.classList.add('inset-0', 'rounded-none');
                 icon.className = 'fa fa-compress text-lg';
                 btn.title = '退出全屏';
                 startControlsAutoHide();
             } else {
                 modal.classList.remove('preview-fullscreen', 'controls-hidden');
-                box.classList.add('inset-2', 'md:inset-4', 'lg:inset-6', 'rounded-3xl');
+                box.classList.add('inset-1', 'md:inset-2', 'lg:inset-3', 'rounded-2xl');
                 box.classList.remove('inset-0', 'rounded-none');
                 icon.className = 'fa fa-expand text-lg';
                 btn.title = '全屏预览';

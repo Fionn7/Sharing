@@ -1473,9 +1473,9 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       c.style.color = '#000';
     } else if (['ppt','pptx'].includes(ext)){
       c.innerHTML = '';
-      var headerH = 60, footerH = 60;
-      var availW = Math.max(320, window.innerWidth - 64);
-      var availH = Math.max(240, window.innerHeight - headerH - footerH - 80);
+      var headerH = 50, footerH = 50;
+      var availW = Math.max(320, window.innerWidth - 48);
+      var availH = Math.max(240, window.innerHeight - headerH - footerH - 48);
       var w, h;
       if (availW / availH > 16 / 9) {
         h = Math.max(360, availH);
