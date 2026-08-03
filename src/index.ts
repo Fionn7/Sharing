@@ -1218,7 +1218,13 @@ async function handlePreview(path: string, token: string, owner: string, repo: s
                 'webm': 'video/webm',
                 'mp3': 'audio/mpeg',
                 'wav': 'audio/wav',
-                'ogg': 'audio/ogg'
+                'ogg': 'audio/ogg',
+                'ppt': 'application/vnd.ms-powerpoint',
+                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'doc': 'application/msword',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'xls': 'application/vnd.ms-excel',
+                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
               };
               if (mimeMap[ext]) {
                 contentType = mimeMap[ext];
@@ -1416,7 +1422,7 @@ async function getFileInfo(path: string, token: string, owner: string, repo: str
 // 分享预览页面
 async function handleSharePreview(filePath: string, fileInfo: any, env: Env, origin: string): Promise<Response> {
   const ext = fileInfo.ext;
-  const previewableExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav', 'ppt', 'pptx'];
+  const previewableExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'];
   const isPreviewable = previewableExts.includes(ext);
 
   let previewContent = '';
@@ -1433,8 +1439,8 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       previewContent = `<div class="flex items-center justify-center h-96"><img src="${previewUrl}" alt="${fileInfo.name}" class="max-w-full max-h-full object-contain rounded-lg"></div>`;
     } else if (ext === 'pdf') {
       previewContent = `<div class="h-96"><iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
-    } else if (['ppt', 'pptx'].includes(ext)) {
-      // PPT 预览 - 使用 Microsoft Office Online Viewer（要求公开可访问的绝对 URL）
+    } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
+      // Office 文档预览 - 使用 Microsoft Office Online Viewer（要求公开可访问的绝对 URL）
       const absolutePreviewUrl = `${origin}${previewUrl}`;
       const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolutePreviewUrl)}`;
       previewContent = `<div class="h-96"><iframe src="${viewerUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;

@@ -458,7 +458,7 @@
             if (!filename || typeof filename !== 'string') return false;
             const ext = filename.split('.').pop()?.toLowerCase();
             if (!ext) return false;
-            return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav', 'ppt', 'pptx'].includes(ext);
+            return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext);
         }
 
         // 当前预览的文件信息
@@ -614,8 +614,8 @@
                             <iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe>
                         </div>
                     `;
-                } else if (['ppt', 'pptx'].includes(ext)) {
-                    // PPT 预览 - 使用 Microsoft Office Online Viewer
+                } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
+                    // Office 文档预览 - 使用 Microsoft Office Online Viewer
                     // Office Online 要求 src 为公开可访问的绝对 URL（项目仓库为 public，/preview/ 端点公开）
                     const absolutePreviewUrl = window.location.origin + previewUrl;
                     const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolutePreviewUrl)}`;
