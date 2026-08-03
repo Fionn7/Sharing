@@ -668,13 +668,24 @@
                         c.appendChild(wrapper);
                     });
                 } else if (['ppt', 'pptx'].includes(ext)) {
-                    container.innerHTML = '<div class="bg-white rounded-xl shadow-lg p-4 overflow-auto h-full min-h-[500px] flex items-center justify-center"></div>';
+                    container.innerHTML = '<div class="bg-white rounded-xl shadow-lg p-2 overflow-auto h-full min-h-[500px] flex items-center justify-center"></div>';
                     const viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
                     const c = container.firstElementChild;
-                    const maxW = c.clientWidth - 32;
-                    const maxH = c.clientHeight - 32;
-                    const w = Math.min(1280, maxW);
-                    const h = Math.round(w * 9 / 16);
+                    // 等待容器渲染完成
+                    await new Promise(r => setTimeout(r, 50));
+                    const maxW = c.clientWidth - 16;
+                    const maxH = c.clientHeight - 16;
+                    // 计算最佳尺寸，保持 16:9 比例，尽可能大
+                    let w, h;
+                    if (maxW / maxH > 16 / 9) {
+                        // 高度是瓶颈
+                        h = Math.max(480, maxH);
+                        w = Math.round(h * 16 / 9);
+                    } else {
+                        // 宽度是瓶颈
+                        w = Math.max(854, maxW);
+                        h = Math.round(w * 9 / 16);
+                    }
                     const v = viewer.init(c, { width: w, height: h });
                     await v.preview(ab);
                 }

@@ -1472,13 +1472,21 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       c.style.padding = '24px';
       c.style.color = '#000';
     } else if (['ppt','pptx'].includes(ext)){
-      c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:16px;min-height:500px;"></div>';
+      c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:8px;min-height:500px;"></div>';
       var viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
       var inner = c.firstElementChild;
-      var maxW = c.clientWidth - 32;
-      var maxH = c.clientHeight - 32;
-      var w = Math.min(1280, maxW);
-      var h = Math.round(w * 9 / 16);
+      // 等待容器渲染
+      await new Promise(function(r){ setTimeout(r, 50); });
+      var maxW = c.clientWidth - 16;
+      var maxH = c.clientHeight - 16;
+      var w, h;
+      if (maxW / maxH > 16 / 9) {
+        h = Math.max(480, maxH);
+        w = Math.round(h * 16 / 9);
+      } else {
+        w = Math.max(854, maxW);
+        h = Math.round(w * 9 / 16);
+      }
       var v = viewer.init(inner, {width:w, height:h});
       await v.preview(ab);
     }
