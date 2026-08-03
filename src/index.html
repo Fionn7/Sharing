@@ -596,7 +596,7 @@
                     html += '</div>';
                     container.innerHTML = html;
                 } else if (['ppt', 'pptx'].includes(ext)) {
-                    const mod = await import('https://cdn.jsdelivr.net/npm/pptx-preview@1.0.7/+esm');
+                    const mod = await import('https://esm.sh/pptx-preview@1.0.7');
                     container.innerHTML = '<div class="bg-white rounded-lg p-4 overflow-auto h-full"></div>';
                     const viewer = mod.init(container.firstElementChild, { width: 960, height: 540 });
                     await viewer.preview(ab);

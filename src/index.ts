@@ -1460,8 +1460,8 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       wb.SheetNames.forEach(function(n){ html += '<h3 style="margin:12px 0 6px;">'+n+'</h3>'; html += XLSX.utils.sheet_to_html(wb.Sheets[n]); });
       html += '</div>';
       c.innerHTML = html;
-    } else if(['ppt','pptx'].includes(ext)){
-      var mod = await import('https://cdn.jsdelivr.net/npm/pptx-preview@1.0.7/+esm');
+    } else if (['ppt','pptx'].includes(ext)){
+      var mod = await import('https://esm.sh/pptx-preview@1.0.7');
       c.innerHTML='';
       var v = mod.init(c, {width:800, height:450});
       await v.preview(ab);
