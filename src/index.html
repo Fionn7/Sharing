@@ -798,7 +798,6 @@
 
         // 切换全屏预览
         let isFullscreen = false;
-        let controlsHideTimer = null;
         function toggleFullscreen() {
             const modal = document.getElementById('previewModal');
             const box = document.getElementById('previewModalBox');
@@ -835,26 +834,35 @@
             stopControlsAutoHide();
             const modal = document.getElementById('previewModal');
             const box = document.getElementById('previewModalBox');
+            // 进入全屏后立即隐藏控制栏
+            modal.classList.add('controls-hidden');
+            // 鼠标移动时显示控制栏，停止移动后隐藏
+            let hideTimer = null;
             const showControls = () => {
                 modal.classList.remove('controls-hidden');
-                clearTimeout(controlsHideTimer);
-                controlsHideTimer = setTimeout(() => {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(() => {
                     if (isFullscreen) {
                         modal.classList.add('controls-hidden');
                     }
-                }, 2500);
+                }, 800);
             };
             box.addEventListener('mousemove', showControls);
             box.addEventListener('touchstart', showControls);
-            showControls();
+            // 鼠标离开时立即隐藏
+            box.addEventListener('mouseleave', () => {
+                if (isFullscreen) {
+                    modal.classList.add('controls-hidden');
+                }
+            });
         }
 
         function stopControlsAutoHide() {
-            clearTimeout(controlsHideTimer);
             const box = document.getElementById('previewModalBox');
             if (box) {
                 box.removeEventListener('mousemove', null);
                 box.removeEventListener('touchstart', null);
+                box.removeEventListener('mouseleave', null);
             }
         }
 
