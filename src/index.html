@@ -632,25 +632,10 @@
             }
         }
 
-        // PPT 预览状态 - 支持全屏重渲染
-        let pptxState = null;
-
+        // PPT 预览 - 一次渲染到位（最大尺寸）
         function computePPTSize() {
-            const headerH = document.getElementById('previewModalHeader')?.offsetHeight || 50;
-            const footerH = document.getElementById('previewModalFooter')?.offsetHeight || 50;
-            const isFs = document.getElementById('previewModal')?.classList.contains('preview-fullscreen');
-            const sidePad = isFs ? 0 : (window.innerWidth < 768 ? 8 : window.innerWidth < 1024 ? 16 : 24);
-            const topPad = isFs ? 0 : (window.innerWidth < 768 ? 8 : window.innerWidth < 1024 ? 16 : 24);
-            const availW = Math.max(320, window.innerWidth - sidePad * 2 - (isFs ? 0 : 16));
-            const availH = Math.max(240, window.innerHeight - headerH - footerH - (isFs ? 0 : topPad * 2) - 8);
-            let w, h;
-            if (availW / availH > 16 / 9) {
-                h = Math.max(360, availH);
-                w = Math.round(h * 16 / 9);
-            } else {
-                w = Math.max(640, availW);
-                h = Math.round(w * 9 / 16);
-            }
+            const w = Math.max(640, window.innerWidth - 32);
+            const h = Math.round(w * 9 / 16);
             return { w, h };
         }
 
@@ -664,13 +649,6 @@
             const viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
             const v = viewer.init(c, { width: w, height: h });
             await v.preview(ab);
-            pptxState = { container, ab };
-        }
-
-        function reRenderPPT() {
-            if (pptxState) {
-                renderPPTPreview(pptxState.container, pptxState.ab);
-            }
         }
 
         // Office 文档纯前端预览（docx-preview + SheetJS + pptx-preview）
@@ -735,9 +713,7 @@
             if (isFullscreen) {
                 toggleFullscreen();
             }
-            // 重置 PPT 状态
-            pptxState = null;
-            
+
             const modal = document.getElementById('previewModal');
             const modalIcon = document.getElementById('previewModalIcon');
             const modalTitle = document.getElementById('previewModalTitle');
@@ -857,8 +833,6 @@
                 btn.title = '全屏预览';
                 stopControlsAutoHide();
             }
-            // 重渲染 PPT 预览以适配新尺寸
-            reRenderPPT();
         }
 
         // 全屏模式下控制栏自动隐藏
