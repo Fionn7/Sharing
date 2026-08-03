@@ -69,6 +69,18 @@
             color: white;
             border-color: rgba(14, 165, 233, 0.5);
         }
+        /* 全屏预览模式 */
+        .preview-fullscreen #previewModalBox {
+            inset: 0 !important;
+            border-radius: 0 !important;
+        }
+        .preview-fullscreen #previewModalContent {
+            padding: 0 !important;
+        }
+        .preview-fullscreen #previewModalContent > div,
+        .preview-fullscreen #previewModalContent iframe {
+            min-height: 100vh !important;
+        }
     </style>
 </head>
 <body class="font-inter text-white overflow-x-hidden">
@@ -244,7 +256,7 @@
     <!-- 文件预览模态框 -->
     <div id="previewModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closePreviewModal()"></div>
-        <div class="absolute inset-2 md:inset-4 lg:inset-6 glass rounded-3xl overflow-hidden flex flex-col shadow-2xl">
+        <div id="previewModalBox" class="absolute inset-2 md:inset-4 lg:inset-6 glass rounded-3xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300">
             <div class="flex items-center justify-between p-4 md:p-5 border-b border-white/10 bg-white/5">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0" id="previewModalIcon">
@@ -255,9 +267,14 @@
                         <p class="text-xs text-white/50" id="previewModalSubtitle">--</p>
                     </div>
                 </div>
-                <button onclick="closePreviewModal()" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white/60 hover:text-white transition-colors flex-shrink-0">
-                    <i class="fa fa-times text-lg"></i>
-                </button>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button onclick="toggleFullscreen()" id="fullscreenBtn" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white/60 hover:text-white transition-colors" title="全屏预览">
+                        <i class="fa fa-expand text-lg"></i>
+                    </button>
+                    <button onclick="closePreviewModal()" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white/60 hover:text-white transition-colors">
+                        <i class="fa fa-times text-lg"></i>
+                    </button>
+                </div>
             </div>
             <div class="flex-1 overflow-auto p-2 md:p-4 bg-slate-800/30" id="previewModalContent">
                 <!-- 预览内容将在这里显示 -->
@@ -635,6 +652,11 @@
         async function openPreviewModal(path, name, size) {
             currentPreviewFile = { path, name, size };
             
+            // 重置全屏状态
+            if (isFullscreen) {
+                toggleFullscreen();
+            }
+            
             const modal = document.getElementById('previewModal');
             const modalIcon = document.getElementById('previewModalIcon');
             const modalTitle = document.getElementById('previewModalTitle');
@@ -731,8 +753,42 @@
             }
         }
 
+        // 切换全屏预览
+        let isFullscreen = false;
+        function toggleFullscreen() {
+            const modal = document.getElementById('previewModal');
+            const box = document.getElementById('previewModalBox');
+            const btn = document.getElementById('fullscreenBtn');
+            const icon = btn.querySelector('i');
+            isFullscreen = !isFullscreen;
+            if (isFullscreen) {
+                modal.classList.add('preview-fullscreen');
+                box.classList.remove('inset-2', 'md:inset-4', 'lg:inset-6', 'rounded-3xl');
+                box.classList.add('inset-0', 'rounded-none');
+                icon.className = 'fa fa-compress text-lg';
+                btn.title = '退出全屏';
+            } else {
+                modal.classList.remove('preview-fullscreen');
+                box.classList.add('inset-2', 'md:inset-4', 'lg:inset-6', 'rounded-3xl');
+                box.classList.remove('inset-0', 'rounded-none');
+                icon.className = 'fa fa-expand text-lg';
+                btn.title = '全屏预览';
+            }
+            // 触发内容区域重绘
+            const content = document.getElementById('previewModalContent');
+            if (content) {
+                content.style.display = 'none';
+                void content.offsetHeight;
+                content.style.display = '';
+            }
+        }
+
         // 关闭预览模态框
         function closePreviewModal() {
+            // 先退出全屏
+            if (isFullscreen) {
+                toggleFullscreen();
+            }
             const modal = document.getElementById('previewModal');
             modal.classList.add('hidden');
             document.body.style.overflow = '';
