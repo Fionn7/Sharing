@@ -1472,20 +1472,21 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
       c.style.padding = '24px';
       c.style.color = '#000';
     } else if (['ppt','pptx'].includes(ext)){
-      c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:8px;min-height:600px;"></div>';
-      var viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
-      var inner = c.firstElementChild;
-      await new Promise(function(r){ setTimeout(r, 50); });
-      var maxW = c.clientWidth - 16;
-      var maxH = c.clientHeight - 16;
+      c.innerHTML = '';
+      var headerH = 60, footerH = 60;
+      var availW = Math.max(320, window.innerWidth - 64);
+      var availH = Math.max(240, window.innerHeight - headerH - footerH - 80);
       var w, h;
-      if (maxW / maxH > 16 / 9) {
-        h = Math.max(480, maxH);
+      if (availW / availH > 16 / 9) {
+        h = Math.max(360, availH);
         w = Math.round(h * 16 / 9);
       } else {
-        w = Math.max(854, maxW);
+        w = Math.max(640, availW);
         h = Math.round(w * 9 / 16);
       }
+      c.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;min-height:'+h+'px;background:#fff;border-radius:12px;overflow:hidden;"></div>';
+      var inner = c.firstElementChild;
+      var viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
       var v = viewer.init(inner, {width:w, height:h});
       await v.preview(ab);
     }
