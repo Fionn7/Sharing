@@ -1440,10 +1440,37 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
     } else if (ext === 'pdf') {
       previewContent = `<div class="h-96"><iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
     } else if (['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx'].includes(ext)) {
-      // Office 文档预览 - 使用 Microsoft Office Online Viewer（需配合自定义域名，*.workers.dev 被限制）
-      const absolutePreviewUrl = `${origin}${previewUrl}`;
-      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolutePreviewUrl)}`;
-      previewContent = `<div class="h-96"><iframe src="${viewerUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
+      // Office 文档预览 - 纯前端渲染（docx-preview / SheetJS / pptx-preview），避免 Office Online fetch 超时
+      previewContent = `<div id="office-preview" class="h-96 bg-white rounded-lg overflow-auto"></div>
+<script>
+(async function(){
+  var c = document.getElementById('office-preview');
+  c.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#666;"><i class="fa fa-spinner fa-pulse fa-2x"></i><p style="margin-top:12px;">正在解析文档...</p></div>';
+  try {
+    var resp = await fetch('${previewUrl}');
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var ab = await resp.arrayBuffer();
+    var ext = '${ext}';
+    if(['doc','docx'].includes(ext)){
+      c.innerHTML='';
+      await docx.renderAsync(ab, c);
+    } else if(['xls','xlsx'].includes(ext)){
+      var wb = XLSX.read(ab, {type:'array'});
+      var html = '<div style="padding:16px;color:#000;font-size:13px;">';
+      wb.SheetNames.forEach(function(n){ html += '<h3 style="margin:12px 0 6px;">'+n+'</h3>'; html += XLSX.utils.sheet_to_html(wb.Sheets[n]); });
+      html += '</div>';
+      c.innerHTML = html;
+    } else if(['ppt','pptx'].includes(ext)){
+      var mod = await import('https://cdn.jsdelivr.net/npm/pptx-preview@1.0.7/+esm');
+      c.innerHTML='';
+      var v = mod.init(c, {width:800, height:450});
+      await v.preview(ab);
+    }
+  } catch(e){
+    c.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#666;"><i class="fa fa-exclamation-circle fa-2x"></i><p style="margin-top:12px;">文档解析失败</p><p style="font-size:12px;margin-top:4px;">'+(e.message||'未知错误')+'</p><p style="font-size:11px;margin-top:8px;color:#999;">请下载后查看</p></div>';
+  }
+})();
+</script>`;
     } else if (['mp4', 'webm'].includes(ext)) {
       previewContent = `<div class="flex items-center justify-center h-96"><video controls class="max-w-full max-h-full rounded-lg"><source src="${previewUrl}" type="video/${ext}"><p>您的浏览器不支持视频播放</p></video></div>`;
     } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
@@ -1462,6 +1489,9 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env, ori
     <title>文件分享 - ${fileInfo.name}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body { background: linear-gradient(135deg, #0f172a, #1e293b); }
         .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); }
