@@ -1347,7 +1347,8 @@ async function handleShareAccess(request: Request, env: Env): Promise<Response> 
   }
 
   if (request.method === 'GET') {
-    return handleSharePreview(filePath, fileInfo, env);
+    const origin = new URL(request.url).origin;
+    return handleSharePreview(filePath, fileInfo, env, origin);
   }
 
   return new Response('方法不支持', { status: 405 });
@@ -1413,9 +1414,9 @@ async function getFileInfo(path: string, token: string, owner: string, repo: str
 }
 
 // 分享预览页面
-async function handleSharePreview(filePath: string, fileInfo: any, env: Env): Promise<Response> {
+async function handleSharePreview(filePath: string, fileInfo: any, env: Env, origin: string): Promise<Response> {
   const ext = fileInfo.ext;
-  const previewableExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav'];
+  const previewableExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mp3', 'wav', 'ppt', 'pptx'];
   const isPreviewable = previewableExts.includes(ext);
 
   let previewContent = '';
@@ -1432,6 +1433,11 @@ async function handleSharePreview(filePath: string, fileInfo: any, env: Env): Pr
       previewContent = `<div class="flex items-center justify-center h-96"><img src="${previewUrl}" alt="${fileInfo.name}" class="max-w-full max-h-full object-contain rounded-lg"></div>`;
     } else if (ext === 'pdf') {
       previewContent = `<div class="h-96"><iframe src="${previewUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
+    } else if (['ppt', 'pptx'].includes(ext)) {
+      // PPT 预览 - 使用 Microsoft Office Online Viewer（要求公开可访问的绝对 URL）
+      const absolutePreviewUrl = `${origin}${previewUrl}`;
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolutePreviewUrl)}`;
+      previewContent = `<div class="h-96"><iframe src="${viewerUrl}" class="w-full h-full rounded-lg" frameborder="0"></iframe></div>`;
     } else if (['mp4', 'webm'].includes(ext)) {
       previewContent = `<div class="flex items-center justify-center h-96"><video controls class="max-w-full max-h-full rounded-lg"><source src="${previewUrl}" type="video/${ext}"><p>您的浏览器不支持视频播放</p></video></div>`;
     } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
