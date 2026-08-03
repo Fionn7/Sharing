@@ -609,7 +609,7 @@
                     });
                 } else if (['ppt', 'pptx'].includes(ext)) {
                     container.innerHTML = '<div class="bg-white rounded-xl shadow-lg p-4 overflow-auto h-full min-h-[500px] flex items-center justify-center"></div>';
-                    const viewer = await import('https://esm.sh/pptx-preview@1.0.7');
+                    const viewer = await import('https://esm.sh/pptx-preview@1.0.7?region=cn');
                     const c = container.firstElementChild;
                     const maxW = c.clientWidth - 32;
                     const maxH = c.clientHeight - 32;
